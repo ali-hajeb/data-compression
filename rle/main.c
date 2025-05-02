@@ -2,100 +2,124 @@
 #include <stdlib.h>
 
 size_t strlength(const char*);
+int strcompare(const char*, const char*);
 ssize_t get_line(char **, size_t *, FILE *);
 int extract_filename_format(const char *, char **, char **);
-void compress(FILE *);
-void decompress(FILE *);
+void compress(FILE *, const char*);
+void decompress(FILE *, const char*);
+void print_cli_example();
 
 long file_size = 0;
 
-int main(void)
+int main(int argc, char* argv[])
 {
-	char *filepath = NULL;
 	char *filename;
 	char *fileformat;
-	size_t filepath_buffer_size = 0;
-	ssize_t filepath_length;
 
-	filepath_length = get_line(&filepath, &filepath_buffer_size, stdin);
-
-	if (filepath_length == -1)
-	{
-		printf("[ERROR]: main() {} -> No input was provided!\n");
-		free(filepath);
-		return 1;
-	}
-
-	printf("FILE: %s (%lld characters)\n", filepath, filepath_length);
-
-	int res = extract_filename_format(filepath, &filename, &fileformat);
-	if (res < 0)
-	{
-		printf("[ERROR]: main() {} -> There was a problem extracting file name and extension!\n");
-		free(filepath);
-		return 1;
-	}
-    /*
-	else if (res == 0)
-	{
-		printf("NAME: %s\n", filename);
-
-		free(filepath);
-		free(filename);
-	}
-	else if (res == 1)
-	{
-		printf("EXTENSION: %s\n", fileformat);
-
-		free(filepath);
-		free(fileformat);
-	}
-	else if (res == 2)
-	{
-		printf("NAME: %s\n", filename);
-		printf("EXTENSION: %s\n", fileformat);
-
-		free(filepath);
-		free(filename);
-		free(fileformat);
-	}
-    */
-    else {
-        FILE *original_file = fopen(filepath, "rb");
-        if (original_file == NULL)
+    if (argc == 3)
+    {
+        if (strcompare(argv[1], "-c") == 0)
         {
-            printf("File not found, my lord!\n");
-            return 1;
+            // Extracting filename and extention
+            int res = extract_filename_format(argv[2], &filename, &fileformat);
+            if (res < 0)
+            {
+                printf("[ERROR]: main() {} -> There was a problem extracting file name and extension!\n");
+                free(filename);
+                free(fileformat);
+                exit(EXIT_FAILURE);
+            }
+            else 
+            {
+                // Creating a new name for the file
+                char* compressed_filename = malloc(strlength(filename) + 5);
+                if (compressed_filename == NULL)
+                {
+                    printf("[ERROR]: main() {} -> Unable to allocate memory for compressed filename buffer\n");
+                    exit(1);
+                }
+
+                sprintf(compressed_filename, "%s.rle\n", argv[2]);
+                compressed_filename[strlength(compressed_filename) - 1] = '\0';
+
+                // Opening the input file
+                FILE *original_file = fopen(argv[2], "rb");
+                if (original_file == NULL)
+                {
+                    printf("[ERROR]]: main() {} -> Unable to open the file!\n");
+                    return 1;
+                }
+
+                // Calculating the file size
+                fseek(original_file, 0, SEEK_END);
+                file_size = ftell(original_file);
+                fseek(original_file, 0, SEEK_SET);
+
+                // Compressing the file
+                printf("Compressing...\n");
+                compress(original_file, compressed_filename);
+                printf("Compression completed!\n");
+
+                // Memory cleaning
+                fclose(original_file);
+
+                free(filename);
+                free(fileformat);
+                free(compressed_filename);
+            }
         }
-
-        fseek(original_file, 0, SEEK_END);
-        file_size = ftell(original_file);
-        fseek(original_file, 0, SEEK_SET);
-
-        printf("Loading completed!\n");
-        printf("Encoding...\n");
-        compress(original_file);
-        printf("Encoding completed!\n");
-
-        FILE *compressed_file = fopen("compressed_file.rle", "rb");
-        if (compressed_file == NULL)
+        else if (strcompare(argv[1], "-d") == 0)
         {
-            printf("File could not be created, my lord!\n");
-            return 1;
+            // Extracting filename and extention
+            int res = extract_filename_format(argv[2], &filename, &fileformat);
+            if (res < 0)
+            {
+                printf("[ERROR]: main() {} -> There was a problem extracting file name and extension!\n");
+                free(filename);
+                free(fileformat);
+                exit(EXIT_FAILURE);
+            }
+            else 
+            {
+                // Opening the input file
+                FILE *compressed_file = fopen(argv[2], "rb");
+                if (compressed_file == NULL)
+                {
+                    printf("[ERROR]: main() {} -> Unable to create compressed file!\n");
+                    return 1;
+                }
+
+                // Calculating the file size
+                fseek(compressed_file, 0, SEEK_END);
+                file_size = ftell(compressed_file);
+                fseek(compressed_file, 0, SEEK_SET);
+
+                // Decompressing the file
+                printf("Decompressing...\n");
+                decompress(compressed_file, filename);
+                printf("Decompression completed!\n");
+
+                // Memory cleaning
+                fclose(compressed_file);
+
+                free(filename);
+                free(fileformat);
+            }
+ 
         }
-
-        printf("Decoding...\n");
-        decompress(compressed_file);
-        printf("Decoding Completed!\n");
-
-        fclose(original_file);
-
-        free(filepath);
-        free(filename);
-		free(fileformat);
+        else 
+        {
+            print_cli_example();
+            exit(EXIT_FAILURE);
+        }
+    }
+    else 
+    {
+        print_cli_example();
+        exit(EXIT_FAILURE);
     }
 
-    return 0;
+   return 0;
 }
 
 ssize_t get_line(char **line_ptr, size_t *size, FILE *stream)
@@ -257,12 +281,12 @@ int extract_filename_format(const char *filepath, char **filename, char **filefo
 	return result;
 }
 
-void compress(FILE *original_file)
-{
-	FILE *compressed_file = fopen("decompress_file.rle", "wb");
+void compress(FILE *original_file, const char* filename)
+{    
+	FILE *compressed_file = fopen(filename, "wb");
 	if (compressed_file == NULL)
 	{
-		printf("File could not be created, my lord!\n");
+		printf("[ERROR]: compress() {} -> Unable to create compressed file!\n");
 		exit(1);
 	}
 
@@ -275,7 +299,7 @@ void compress(FILE *original_file)
 		counter = 1;
 		while (fread(&current_byte, sizeof(unsigned char), 1, original_file) == 1)
 		{
-			printf("\rcur: %ld/%ld -> %ld", cur, file_size, ftell(compressed_file));
+			printf("\rProcessing: %ld/%ld -> %ld", cur, file_size, ftell(compressed_file));
 			cur++;
 			if (flag_byte == current_byte)
 			{
@@ -306,23 +330,27 @@ void compress(FILE *original_file)
 		cur++;
 	}
 
-	printf("\rcur: %ld/%ld -> %ld\n", cur, file_size, ftell(compressed_file));
+	printf("\rProcessing: %ld/%ld -> %ld\n", cur, file_size, ftell(compressed_file));
 	fclose(compressed_file);
 }
 
-void decompress(FILE *compressed_file)
+void decompress(FILE *compressed_file, const char* original_filename)
 {
-	FILE *decompressed_file = fopen("file.jpg", "wb");
+	FILE *decompressed_file = fopen(original_filename, "wb");
 	if (decompressed_file == NULL)
 	{
-		printf("File could not be found, my lord!\n");
+		printf("[ERROR]: decompress() {} -> Unable to create decompressed file!\n");
 		exit(1);
 	}
 
 	unsigned char counter_byte, flag_byte;
+    long cur = 0;
 
 	while (fread(&counter_byte, sizeof(unsigned char), 1, compressed_file) == 1)
 	{
+        printf("\rProcessing: %ld/%ld -> %ld", cur, file_size, ftell(decompressed_file));
+        cur += 2;
+
 		if (fread(&flag_byte, sizeof(unsigned char), 1, compressed_file) == 1)
 		{
 			for (int i = 0; i < counter_byte; i++)
@@ -332,16 +360,17 @@ void decompress(FILE *compressed_file)
 		}
 		else
 		{
-			printf("Unexpected error!\n");
+            printf("[ERROR]: decompress() {} -> Unexpected error during decompressing the file!\n");
 			fclose(decompressed_file);
 			return;
 		}
 	}
 
+	printf("\rProcessing: %ld/%ld -> %ld\n", cur, file_size, ftell(decompressed_file));
 	fclose(decompressed_file);
 }
 
-size_t strlength(const char *str)
+size_t strlength(const char* str)
 {
     size_t length = 0;
     while (*str != '\0')
@@ -351,12 +380,27 @@ size_t strlength(const char *str)
     }
     return length;
 }
+
+int strcompare(const char* s1, const char* s2)
 {
-	int length = 0;
-	while (*str != '\0')
-	{
-		length++;
-		str++;
-	}
-	return length;
+    unsigned char c1, c2;
+    do
+    {
+      c1 = (unsigned char) *s1++;
+      c2 = (unsigned char) *s2++;
+
+      if (c1 == '\0') return c1 - c2;
+    }
+  while (c1 == c2);
+
+  return c1 - c2;
+}
+
+void print_cli_example()
+{
+    printf("\r[Usage]:\n");
+    printf("\r\t-c <file path>: Compress file and save it.\n");
+    printf("\r\t-d <file path>: Decompress file and save it.\n");
+    printf("\r\t[EXAMPLE]: ./rle -c image.bmp\n");
+    printf("\n");
 }
