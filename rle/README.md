@@ -27,21 +27,31 @@ RLE might not be the most efficient compression method for data with short or ir
 - Size inflation:
 In some cases, the encoded data might be larger than the original if the data doesn't have many runs.
 
-## Compile & Execution
+## Compile
 In order to compile the source code, you can use `gcc` in this manner:
 ```
 gcc ./main.c -o rle
-./rle.exe
 ```
 
 g++:
 ```
 g++ ./main.c -o rle
-./rle
 ```
 
 clang:
 ```
 clang ./main.c -o rle
-./rle
 ```
+
+## Usage
+- Compressing a file: `./rle -c <file_path>`. 
+- Decompressing a file: `./rle -d <file_path>`.
+
+Example:
+- `./rle -c c:/picture.bmp`
+- `./rle -d ./picture.bmp`
+
+## TODO
+- [x] feature: CLI
+- [ ] feature: Multi-Threading
+- [ ] Improve performance
