@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define BUFFER_SIZE 8192
+
 size_t strlength(const char*);
 int strcompare(const char*, const char*);
 ssize_t get_line(char **, size_t *, FILE *);
 int extract_filename_format(const char *, char **, char **);
-void compress(FILE *, const char*);
-void decompress(FILE *, const char*);
+int compress(FILE *, const char*);
+int decompress(FILE *, const char*);
 void print_cli_example();
 
 long file_size = 0;
@@ -36,7 +38,7 @@ int main(int argc, char* argv[])
                 if (compressed_filename == NULL)
                 {
                     printf("[ERROR]: main() {} -> Unable to allocate memory for compressed filename buffer\n");
-                    exit(1);
+                    exit(EXIT_FAILURE);
                 }
 
                 sprintf(compressed_filename, "%s.rle\n", argv[2]);
@@ -57,8 +59,14 @@ int main(int argc, char* argv[])
 
                 // Compressing the file
                 printf("Compressing...\n");
-                compress(original_file, compressed_filename);
-                printf("Compression completed!\n");
+                int status = compress(original_file, compressed_filename);
+                if (status > 0)
+                {
+                    printf("Compression completed!\n");
+                } else {
+
+                    printf("Compression failed!\n");
+                }
 
                 // Memory cleaning
                 fclose(original_file);
@@ -96,8 +104,13 @@ int main(int argc, char* argv[])
 
                 // Decompressing the file
                 printf("Decompressing...\n");
-                decompress(compressed_file, filename);
-                printf("Decompression completed!\n");
+                int status = decompress(compressed_file, filename);
+                if (status > 0)
+                {
+                    printf("Decompression completed!\n");
+                } else {
+                    printf("Decompression failed!\n");
+                }
 
                 // Memory cleaning
                 fclose(compressed_file);
@@ -281,93 +294,144 @@ int extract_filename_format(const char *filepath, char **filename, char **filefo
 	return result;
 }
 
-void compress(FILE *original_file, const char* filename)
+int compress(FILE *original_file, const char* filename)
 {    
 	FILE *compressed_file = fopen(filename, "wb");
 	if (compressed_file == NULL)
 	{
 		printf("[ERROR]: compress() {} -> Unable to create compressed file!\n");
-		exit(1);
+		return 0;
 	}
 
-	unsigned char flag_byte, current_byte;
-	long cur = 0;
+    char* read_buffer = malloc(BUFFER_SIZE);
+    char* output_buffer = malloc(BUFFER_SIZE * 2);
+    if (!read_buffer || !output_buffer)
+    {
+        printf("[ERROR]: compress() -> Unable to allocate memory for buffers!\n");
+        free(read_buffer);
+        free(output_buffer);
+        fclose(compressed_file);
+        return 0;
+    }
+
+    unsigned char flag_byte;
+	size_t cur = 0;
+    size_t bytes_read = 0;
+    size_t output_pos = 0;
 	int counter = 0;
 
-	if (fread(&flag_byte, sizeof(unsigned char), 1, original_file) == 1)
-	{
-		counter = 1;
-		while (fread(&current_byte, sizeof(unsigned char), 1, original_file) == 1)
-		{
-			printf("\rProcessing: %ld/%ld -> %ld", cur, file_size, ftell(compressed_file));
-			cur++;
-			if (flag_byte == current_byte)
-			{
-				counter++;
+    while ((bytes_read = fread(read_buffer, 1, BUFFER_SIZE, original_file)) > 0)
+    {
+        for (size_t i = 0; i < bytes_read; i++)
+        {
+            if (counter == 0)
+            {
+                flag_byte = read_buffer[i];
+            }
+            
+            if (flag_byte == read_buffer[i] && counter < 255)
+            {
+                counter++;
+            } else {
+                output_buffer[output_pos++] = counter;
+                output_buffer[output_pos++] = flag_byte;
 
-				if (counter == 255)
-				{
-					fwrite(&counter, sizeof(unsigned char), 1, compressed_file);
-					fwrite(&flag_byte, sizeof(unsigned char), 1, compressed_file);
-					counter = 0;
-				}
-			}
-			else
-			{
-				fwrite(&counter, sizeof(unsigned char), 1, compressed_file);
-				fwrite(&flag_byte, sizeof(unsigned char), 1, compressed_file);
-				counter = 0;
-				flag_byte = current_byte;
-				counter = 1;
-			}
-		}
-	}
-
+                if (output_pos >= BUFFER_SIZE)
+                {
+                    fwrite(output_buffer, 1, output_pos, compressed_file);
+                    output_pos = 0;
+                }
+                flag_byte = read_buffer[i];
+                counter = 1;
+            }
+        }
+        cur += bytes_read;
+        if ( cur % (100 * 1024) == 0)
+        {
+            printf("\rProcessing: %lld/%ld -> %ld", cur, file_size, ftell(compressed_file));
+        }
+    }
+	
 	if (counter > 0)
 	{
-		fwrite(&counter, sizeof(unsigned char), 1, compressed_file);
-		fwrite(&flag_byte, sizeof(unsigned char), 1, compressed_file);
-		cur++;
+        output_buffer[output_pos++] = counter;
+        output_buffer[output_pos++] = flag_byte;
 	}
 
-	printf("\rProcessing: %ld/%ld -> %ld\n", cur, file_size, ftell(compressed_file));
+    if (output_pos > 0)
+    {
+        fwrite(output_buffer, 1, output_pos, compressed_file);
+    }
+
+	printf("\rProcessing: %lld/%ld -> %ld\n", cur, file_size, ftell(compressed_file));
+
 	fclose(compressed_file);
+    free(read_buffer);
+    free(output_buffer);
+    return cur;
 }
 
-void decompress(FILE *compressed_file, const char* original_filename)
+int decompress(FILE *compressed_file, const char* original_filename)
 {
 	FILE *decompressed_file = fopen(original_filename, "wb");
 	if (decompressed_file == NULL)
 	{
 		printf("[ERROR]: decompress() {} -> Unable to create decompressed file!\n");
-		exit(1);
+		return 0;
 	}
+    char* read_buffer = malloc(BUFFER_SIZE);
+    char* output_buffer = malloc(BUFFER_SIZE * 2);
+    if (!read_buffer || !output_buffer)
+    {
+        printf("[ERROR]: compress() -> Unable to allocate memory for buffers!\n");
+        free(read_buffer);
+        free(output_buffer);
+        fclose(decompressed_file);
+        return 0;
+    }
 
 	unsigned char counter_byte, flag_byte;
-    long cur = 0;
+    size_t bytes_read = 0;
+    size_t output_pos = 0;
+    size_t cur = 0;
 
-	while (fread(&counter_byte, sizeof(unsigned char), 1, compressed_file) == 1)
-	{
-        printf("\rProcessing: %ld/%ld -> %ld", cur, file_size, ftell(decompressed_file));
-        cur += 2;
+    while ((bytes_read = fread(read_buffer, 1, BUFFER_SIZE, compressed_file)) > 0)
+    {
+        for (size_t i = 0; i < bytes_read; i += 2)
+        {
+            if ( i + 2 >= bytes_read) break;
+            
+            counter_byte = read_buffer[i];
+            flag_byte = read_buffer[i + 1];
 
-		if (fread(&flag_byte, sizeof(unsigned char), 1, compressed_file) == 1)
-		{
-			for (int i = 0; i < counter_byte; i++)
-			{
-				fwrite(&flag_byte, sizeof(unsigned char), 1, decompressed_file);
-			}
-		}
-		else
-		{
-            printf("[ERROR]: decompress() {} -> Unexpected error during decompressing the file!\n");
-			fclose(decompressed_file);
-			return;
-		}
-	}
+            while ( counter_byte > 0 )
+            {
+                output_buffer[output_pos++] = flag_byte;
+                counter_byte--;
 
-	printf("\rProcessing: %ld/%ld -> %ld\n", cur, file_size, ftell(decompressed_file));
+                if (output_pos >= BUFFER_SIZE)
+                {
+                    fwrite(output_buffer, 1, output_pos, decompressed_file);
+                    output_pos = 0;
+                }
+            }
+        }
+
+        cur += bytes_read;
+        if ( cur % (100 * 1024) == 0)
+        {
+            printf("\rProcessing: %lld/%ld -> %ld", cur, file_size, ftell(decompressed_file));
+        }
+    }
+
+    fwrite(output_buffer, 1, output_pos, decompressed_file);
+
+	printf("\rProcessing: %lld/%ld -> %ld\n", cur, file_size, ftell(decompressed_file));
+
 	fclose(decompressed_file);
+    free(read_buffer);
+    free(output_buffer);
+    return cur;
 }
 
 size_t strlength(const char* str)
