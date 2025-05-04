@@ -53,5 +53,5 @@ Example:
 
 ## TODO
 - [x] feature: CLI
+- [x] Improve performance
 - [ ] feature: Multi-Threading
-- [ ] Improve performance
