@@ -239,7 +239,7 @@ int extract_filename_format(const char *filepath, char **filename, char **filefo
 
 	// Checking if file name has one or more characters. (Some files might be like '.ext')
 	size_t filename_size = last_dot_pos - last_slash_pos - 1;
-	if (filename_size > 1)
+	if (filename_size >= 1)
 	{
 		*filename = malloc(filename_size + 1);
 		if (*filename == NULL)
