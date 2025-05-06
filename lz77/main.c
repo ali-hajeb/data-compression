@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdio.h> 
 #include <stdlib.h>
 
 #define BUFFER_SIZE 256
@@ -16,11 +16,8 @@ typedef struct window {
 } Window;
 
 int strcomp(const char*, const char*);
-void shift_buffer(char* buffer, char chr);
-void compress();
-void slide();
-void search();
-void decompress();
+void shift_buffer(char*, size_t, char);
+size_t dict_push(char*, char, size_t*, const size_t);
 
 int main(int argc, char* argv[])
 {
@@ -48,41 +45,72 @@ int main(int argc, char* argv[])
                 for (size_t i = 0; i < bytes_read; i++)
                 {
                     unsigned char current_char = slider.buffer[i];
-                    size_t last_match_pos = 0;
-                    size_t match_length = 0;
+                    size_t best_match_pos = dict_size;
+                    size_t best_match_length = 0;
 
                     for (size_t j = 0; j < DICTIONARY_SIZE; j++)
                     {
                         if (current_char == slider.dictionary[j])
                         {
-                            last_match_pos = j;
+                            size_t match_length = 0;
                             for (size_t k = 0; k < DICTIONARY_SIZE - j; k++)
                             {
                                 if (slider.buffer[i + k] == slider.dictionary[j + k])
                                 {
                                     match_length++;
                                 } else {
-                                    match_length = 0;
                                     break;
                                 }
+                            }
+
+                            if (match_length > best_match_length)
+                            {
+                                best_match_length = match_length;
+                                best_match_pos = j;
                             }
                         }
                     }
                     
-                    if (match_length)
+                    if (best_match_length)
                     {
                         Output* out =  malloc(sizeof(Output));
-                        out->offset = i;
-                        out->length = match_length;
-                        out->next_char = current_char;
-                    } else {
-                        if (dict_size + 1 >= DICTIONARY_SIZE)
+                        out->offset = dict_size - best_match_pos;
+                        out->length = best_match_length;
+                        out->next_char = slider.buffer[i + best_match_length];
+
+                        for (size_t l = 0; l < best_match_length; l++)
                         {
-                            shift_buffer(slider.dictionary, current_char);
-                        } else {
-                            slider.dictionary[dict_size++] = current_char;
+                            dict_push(slider.dictionary, slider.buffer[i + l], &dict_size, DICTIONARY_SIZE);
                         }
+                        
+                        i += best_match_length - 1;
+
+                        printf("MATCH: (%lld)", best_match_length);
+                        for (size_t z = 0; z < best_match_length; z++)
+                        {
+                            printf("%c", slider.dictionary[best_match_pos + z]);
+                        }
+                        printf("|\n");
+
+                        printf("DICTIONARY: (%lld)", dict_size);
+                        for (size_t zz = 0; zz < dict_size; zz++) 
+                        {
+                            printf("%c", slider.dictionary[zz]);
+                        }
+                        printf("|\n");
+
+                        printf("<%d, %lld, %c>\n", out->offset, out->length, out->next_char);
+                    } else {
+                        printf("<%d, 0, %c>\n", dict_size - best_match_pos, slider.buffer[i + best_match_length]);
+                        printf("DICTIONARY: (%lld)", dict_size);
+                        for (size_t zz = 0; zz < dict_size; zz++) 
+                        {
+                            printf("%c", slider.dictionary[zz]);
+                        }
+                        printf("|\n");
+                        dict_push(slider.dictionary, current_char, &dict_size, DICTIONARY_SIZE);
                     }
+                    printf("----------------\n");
                     pos++;
                 }
             }
@@ -91,12 +119,16 @@ int main(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
-void shift_buffer(char* buffer, char chr)
+void shift_buffer(char* buffer, size_t buffer_size, char chr)
 {
-
+    for (size_t i = 0; i < buffer_size - 1; i++)
+    {
+        buffer[i] = buffer[i + 1];
+        buffer[i + 1] = chr;
+    }
 }
 
-int strcompare(const char* s1, const char* s2)
+int strcomp(const char* s1, const char* s2)
 {
     unsigned char c1, c2;
     do
@@ -109,4 +141,16 @@ int strcompare(const char* s1, const char* s2)
   while (c1 == c2);
 
   return c1 - c2;
+}
+
+size_t dict_push(char* dict, char chr, size_t* dict_last_pos, const size_t dict_size)
+{
+    if (*dict_last_pos + 1 >= dict_size)
+    {
+        shift_buffer(dict, dict_size, chr);
+    } else {
+        dict[(*dict_last_pos)++] = chr;
+    }
+
+    return 1;
 }
