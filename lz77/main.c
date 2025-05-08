@@ -44,6 +44,7 @@ int main(int argc, char* argv[])
             {
                 for (size_t i = 0; i < bytes_read; i++)
                 {
+                    printf("%lld/%lld - CHECKING %c\n", i, bytes_read, slider.buffer[i]);
                     unsigned char current_char = slider.buffer[i];
                     size_t best_match_pos = dict_size;
                     size_t best_match_length = 0;
@@ -67,10 +68,22 @@ int main(int argc, char* argv[])
                             {
                                 best_match_length = match_length;
                                 best_match_pos = j;
+                            } else {
+                                if (!best_match_length)
+                                {
+                                    best_match_pos = j;
+                                }
                             }
                         }
                     }
                     
+                    printf("DICTIONARY: (%lld)", dict_size);
+                    for (size_t zz = 0; zz < dict_size; zz++) 
+                    {
+                        printf("%c", slider.dictionary[zz]);
+                    }
+                    printf("|\n");
+
                     if (best_match_length)
                     {
                         Output* out =  malloc(sizeof(Output));
@@ -78,12 +91,13 @@ int main(int argc, char* argv[])
                         out->length = best_match_length;
                         out->next_char = slider.buffer[i + best_match_length];
 
-                        for (size_t l = 0; l < best_match_length; l++)
+                        
+                        for (size_t l = 0; l <= best_match_length; l++)
                         {
                             dict_push(slider.dictionary, slider.buffer[i + l], &dict_size, DICTIONARY_SIZE);
                         }
                         
-                        i += best_match_length - 1;
+                        i += best_match_length;
 
                         printf("MATCH: (%lld)", best_match_length);
                         for (size_t z = 0; z < best_match_length; z++)
@@ -92,22 +106,9 @@ int main(int argc, char* argv[])
                         }
                         printf("|\n");
 
-                        printf("DICTIONARY: (%lld)", dict_size);
-                        for (size_t zz = 0; zz < dict_size; zz++) 
-                        {
-                            printf("%c", slider.dictionary[zz]);
-                        }
-                        printf("|\n");
-
-                        printf("<%d, %lld, %c>\n", out->offset, out->length, out->next_char);
+                        printf("<%lld, %lld, %c>\n", out->offset, out->length, out->next_char);
                     } else {
-                        printf("<%d, 0, %c>\n", dict_size - best_match_pos, slider.buffer[i + best_match_length]);
-                        printf("DICTIONARY: (%lld)", dict_size);
-                        for (size_t zz = 0; zz < dict_size; zz++) 
-                        {
-                            printf("%c", slider.dictionary[zz]);
-                        }
-                        printf("|\n");
+                        printf("<%lld, 0, %c>\n", slider.buffer[i + best_match_length]);
                         dict_push(slider.dictionary, current_char, &dict_size, DICTIONARY_SIZE);
                     }
                     printf("----------------\n");
@@ -124,8 +125,8 @@ void shift_buffer(char* buffer, size_t buffer_size, char chr)
     for (size_t i = 0; i < buffer_size - 1; i++)
     {
         buffer[i] = buffer[i + 1];
-        buffer[i + 1] = chr;
     }
+        buffer[buffer_size - 1] = chr;
 }
 
 int strcomp(const char* s1, const char* s2)
