@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
             FILE* original_file = fopen(argv[2], "rb");
             if (original_file == NULL)
             {
-                fprintf(stderr, "[ERROR]]: main() {} -> Unable to open the file!\n");
+                fprintf(stderr, "[ERROR]: main() {} -> Unable to open the file!\n");
                 return 1;
             }
 
@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
             char* compressed_filename = malloc(strlength(argv[2]) + 5);
             if (compressed_filename == NULL)
             {
-                fprintf(stderr, "[ERROR]]: main() {} -> Unable to allocate memory for comressed file name!\n");
+                fprintf(stderr, "[ERROR]: main() {} -> Unable to allocate memory for comressed file name!\n");
                 return 1;
             }
            
@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
             FILE* compressed_file = fopen(compressed_filename, "wb");
             if (compressed_file == NULL)
             {
-                fprintf(stderr, "[ERROR]]: main() {} -> Unable to create compressed file!\n");
+                fprintf(stderr, "[ERROR]: main() {} -> Unable to create compressed file!\n");
                 return 1;
             }
 
@@ -84,7 +84,7 @@ int main(int argc, char* argv[])
             FILE* compressed_file = fopen(argv[2], "rb");
             if (compressed_file == NULL)
             {
-                fprintf(stderr, "[ERROR]]: main() {} -> Unable to open the file!\n");
+                fprintf(stderr, "[ERROR]: main() {} -> Unable to open the file!\n");
                 return 1;
             }
 
@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
             char* original_filename = malloc(strlength(argv[2]) - 4);
             if (original_filename == NULL)
             {
-                fprintf(stderr, "[ERROR]]: main() {} -> Unable to allocate memory for original file name!\n");
+                fprintf(stderr, "[ERROR]: main() {} -> Unable to allocate memory for original file name!\n");
                 return 1;
             }
            
@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
             FILE* original_file = fopen(original_filename, "wb");
             if (original_file == NULL)
             {
-                fprintf(stderr, "[ERROR]]: main() {} -> Unable to create original file!\n");
+                fprintf(stderr, "[ERROR]: main() {} -> Unable to create original file!\n");
                 return 1;
             }
 
@@ -193,7 +193,7 @@ int compress(FILE* original_file, FILE* compressed_file)
     {
         for (size_t i = 0; i < bytes_read; i++)
         {
-            if (DEBUG) printf("[%04lld] (%2X):\t", process + i, slider.buffer[i]);
+            // if (DEBUG) printf("[%04lld] (%2X):\t", process + i, slider.buffer[i]);
             unsigned char current_char = slider.buffer[i];
             size_t best_match_pos = dict_size;
             uint8_t best_match_length = 0;
@@ -227,7 +227,8 @@ int compress(FILE* original_file, FILE* compressed_file)
                 out.offset = dict_size - best_match_pos;
                 out.length = best_match_length;
 
-                if (DEBUG) printf("MATCH\t <%04d, %04d>\t\t-> |", out.offset, out.length);
+                // if (DEBUG) printf("MATCH\t <%04d, %04d>\t\t-> |", out.offset, out.length);
+                if (DEBUG) printf("- |");
                 for (size_t l = 0; l < best_match_length; l++)
                 {
                     dict_push(slider.dictionary, slider.buffer[i + l], &dict_size, DICTIONARY_SIZE);
@@ -244,7 +245,8 @@ int compress(FILE* original_file, FILE* compressed_file)
                 output_buffer[output_pos++] = 0;
                 output_buffer[output_pos++] = slider.buffer[i];
 
-                if (DEBUG) printf("LITERAL\t <0000, 0000, %2X>", slider.buffer[i]);
+                // if (DEBUG) printf("LITERAL\t <0000, 0000, %2X>", slider.buffer[i]);
+                if (DEBUG) printf("- |%2X|", slider.buffer[i]);
                 dict_push(slider.dictionary, current_char, &dict_size, DICTIONARY_SIZE);
             }
 
@@ -299,23 +301,25 @@ int decompress(FILE* compressed_file, FILE* original_file)
         for (size_t i = 0; i < bytes_read; i++) 
         {
             // If offset is more than 0 then read only 2 bytes (offset, length)
-            if (read_buffer[i])
+            uint16_t offset = ((uint16_t) read_buffer[i + 1] << 8) | read_buffer[i]; // Read 2 bytes
+            if (offset)
             {
                 if ( i + 4 >= bytes_read)
                 {
                     fseek(compressed_file, i - bytes_read, SEEK_CUR);
                     break;
                 }
-                uint16_t offset = ((uint16_t) read_buffer[i + 1] << 8) | read_buffer[i]; // Read 2 bytes
-                if (DEBUG) printf("[%04lld] <%03d, %03d>\t[%2X][%2X], %lld\t -> |", process + i, offset, read_buffer[i + 2], read_buffer[i], read_buffer[i + 1], output_pos);
+                // uint16_t offset = ((uint16_t) read_buffer[i + 1] << 8) | read_buffer[i]; // Read 2 bytes
+                // if (DEBUG) printf("[%04lld] <%03d, %03d>\t[%2X][%2X], %lld\t\t -> |", process + i, offset, read_buffer[i + 2], read_buffer[i], read_buffer[i + 1], output_pos);
+                if (DEBUG) printf("+ |");
                 offset = output_pos - offset;
                 i += 2;
-                uint8_t length = read_buffer[i]; // Read 2 bytes
+                uint8_t length = read_buffer[i];
 
                 // If output_buffer is full then shift it 1kb
                 if (length + output_pos >= DICTIONARY_SIZE + 1024)
                 {
-                    fwrite(output_buffer, sizeof(unsigned char), output_pos, original_file);
+                    fwrite(output_buffer + 1024, sizeof(unsigned char), output_pos - 1024, original_file);
                     shift_buffer(output_buffer, DICTIONARY_SIZE + 1024, 0, 1024);
                     output_pos -= 1024;
                 }
@@ -328,11 +332,12 @@ int decompress(FILE* compressed_file, FILE* original_file)
             } 
             // If offset is 0 then read 3 bytes (offset, length, next_char)
             else {
-                if (DEBUG) printf("[%04lld] <000, 000, %2X>", process + i, read_buffer[i + 2]);
+                // if (DEBUG) printf("[%04lld] <000, 000, %2X>", process + i, read_buffer[i + 2]);
+                if (DEBUG) printf("+ |%2X|", read_buffer[i + 2]);
                 // If output_buffer is full then shift it 1kb
                 if (output_pos + 1 >= DICTIONARY_SIZE + 1024)
                 {
-                    fwrite(output_buffer, sizeof(unsigned char), output_pos, original_file);
+                    fwrite(output_buffer + 1024, sizeof(unsigned char), output_pos - 1024, original_file);
                     shift_buffer(output_buffer, DICTIONARY_SIZE + 1024, 0, 1024);
                     output_pos -= 1024;
                 }
@@ -351,7 +356,7 @@ int decompress(FILE* compressed_file, FILE* original_file)
 
     if (output_pos > 0)
     {
-        fwrite(output_buffer, sizeof(unsigned char), output_pos, original_file);
+        fwrite(output_buffer + 1024, sizeof(unsigned char), output_pos - 1024, original_file);
     }
 	if (!DEBUG) printf("\rProcessing: %lld/%lld -> %ld\n", process, file_size, ftell(original_file));
     free(output_buffer);
