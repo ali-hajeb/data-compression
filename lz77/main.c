@@ -29,7 +29,6 @@ int decompress(FILE* compressed_file, FILE* original_file);
 
 int main(int argc, char* argv[]) {
     if (argc >= 3) {
-        if (strcomp(argv[1], "-v") == 0) DEBUG = 1;
         // Compression
         if (strcomp(argv[1], "-c") == 0) {
             FILE* original_file = fopen(argv[2], "rb");
@@ -88,7 +87,6 @@ int main(int argc, char* argv[]) {
             argv[2][strlength(argv[2]) - 4] = '\0';
             sprintf(original_filename, "%s", argv[2]);
             original_filename[strlength(argv[2])] = '\0';
-            printf("%s\n", original_filename);
 
             FILE* original_file = fopen(original_filename, "wb");
             if (original_file == NULL) {
