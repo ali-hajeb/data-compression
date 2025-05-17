@@ -1,6 +1,5 @@
 # Run-Length Encoding (RLE)
 Run-length encoding (RLE) is a lossless data compression technique that replaces consecutive identical data values with a single count value. It's particularly effective for data with many runs, such as images, animations, and certain text files. 
-Here's a more detailed explanation:
 
 ## How it works
 1. Identify runs: RLE scans data for sequences of identical values, which are called "runs". 
