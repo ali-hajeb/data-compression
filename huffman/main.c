@@ -1,4 +1,3 @@
-#include <corecrt.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,7 +44,8 @@ Node* heap_extract(Heap* heap);
 Node* combine_nodes(Node* n1, Node* n2);
 Node* build_tree(Node* list, size_t last_index);
 Node* build_heap_tree(Heap* heap);
-void print_tree(Node* tree, int indent); 
+void print_tree(Node* root, int indent); 
+void free_tree(Node* root);
 void output_file();
 
 void encode();
@@ -55,14 +55,12 @@ int main(void) {
     // FILE* file = open_file("./pic.bmp", "rb");
     FILE* file = open_file("./test", "rb");
     if (file == NULL) return EXIT_FAILURE;
-    printf("File opened!\n");
     
     size_t* freq_table = count_run(file);
     if (freq_table == NULL) {
         fclose(file);
         return EXIT_FAILURE;
     }
-    printf("Freq created!\n");
 
     Heap* pq = create_priority_queue(freq_table);
     if (pq == NULL) {
@@ -71,8 +69,6 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    // size_t last_index = sort(pq, FREQUENCY_TABLE_SIZE);
-    // printf("last index: %zu\n", last_index);
     if (DEBUG) print_heap(pq, "priority_queue");
 
     Node* root = build_heap_tree(pq);
@@ -85,18 +81,13 @@ int main(void) {
     }
     if (DEBUG) print_heap(pq, "tree");
 
-
-    printf("DONE!\n");
     print_tree(root, 0);
 
     free(freq_table);
-    printf("DONE!\n");
+    free_tree(root);
     free(pq->nodes);
-    printf("DONE!\n");
     free(pq);
-    printf("DONE!\n");
     fclose(file);
-    printf("DONE!\n");
     return 0;
 }
 
@@ -117,10 +108,6 @@ size_t* count_run(FILE* file) {
         return NULL;
     }
     memset(frequency_table, 0, FREQUENCY_TABLE_SIZE * sizeof(size_t)); // set every value to zero, in order to start counting occurance
-    // for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
-    //     printf("[%llX]: %zu\n", i, frequency_table[i]);
-    // }
-    // printf("----------------------\n");
 
     char* read_buffer = malloc(READ_BUFFER_SIZE * sizeof(unsigned char));
     if (read_buffer == NULL) {
@@ -131,7 +118,7 @@ size_t* count_run(FILE* file) {
     size_t read_bytes;
     while ( (read_bytes = fread(read_buffer, sizeof(unsigned char), READ_BUFFER_SIZE, file)) != 0) {
         for (size_t i = 0; i < read_bytes; i++) {
-            frequency_table[read_buffer[i]]++;
+            frequency_table[(unsigned char) read_buffer[i]]++;
         }
     }
 
@@ -139,37 +126,6 @@ size_t* count_run(FILE* file) {
     return frequency_table;
 }
 
-ssize_t sort(Node* list, size_t size) {
-    size_t last_index = -1;
-    for (size_t i = 0; i < size; i++) {
-        for (size_t j = i + 1; j < size; j++) {
-            if ((list[i].frequency < list[j].frequency)
-                || (list[i].frequency == list[j].frequency && list[i].symbol < list[j].symbol)) {
-                swap(&list[i] , &list[j]); 
-            }
-        }
-    }
-
-
-    size_t max_count = list[0].frequency;
-    if (max_count == 0) max_count = 1;
-    max_count = max_count / 255 + 1; // scale down the counts so it can be fit into unsigned char
-
-    for (size_t i = 0; i < size; i++) {
-        if (list[i].frequency == 0) break;
-
-        size_t scaled_count = list[i].frequency / max_count;
-        if (list[i].frequency != 0 && scaled_count  == 0) {
-            scaled_count = 1;
-        }
-        list[i].frequency = scaled_count;
-
-        // printf("[%X]: %c (%zu)\n", list[i].symbol, list[i].symbol, list[i].frequency);
-        last_index++;
-    }
-
-    return last_index;
-}
 
 void swap(Node* p1, Node* p2) {
     Node temp = *p1;
@@ -178,20 +134,6 @@ void swap(Node* p1, Node* p2) {
 }
 
 Heap* create_priority_queue(size_t* list) {
-    // Node* priority_queue = malloc(FREQUENCY_TABLE_SIZE * sizeof(Node));
-    // if (priority_queue == NULL) {
-    //     fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority queue!\n");
-    //     return NULL;
-    // }
-    //
-    // for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
-    //     priority_queue[i].symbol = i;
-    //     priority_queue[i].frequency = list[i];
-    //     priority_queue[i].r_node = NULL;
-    //     priority_queue[i].l_node = NULL;
-    // }
-    //
-    // return priority_queue;
     size_t heap_size = 0;
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (list[i] != 0) heap_size++;
@@ -216,13 +158,10 @@ Heap* create_priority_queue(size_t* list) {
 
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (list[i] != 0) {
-            Node* node = malloc(sizeof(Node));
-            node->symbol = i;
-            node->frequency = list[i];
-            node->l_node = node->r_node = NULL;
-            ssize_t node_index = heap_insert(priority_queue, node);
+            Node node = { .symbol = (unsigned char)i, .frequency = list[i], .l_node = NULL, .r_node = NULL };
+            ssize_t node_index = heap_insert(priority_queue, &node);
             if (node_index == -1) {
-                printf("hey!\n");
+                fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Heap insert failed!\n");
                 free(priority_queue->nodes);
                 free(priority_queue);
                 return NULL;
@@ -235,7 +174,6 @@ Heap* create_priority_queue(size_t* list) {
 
 ssize_t heap_insert(Heap* heap, Node* node) {
     if (heap->size >= heap->max_size) {
-        printf("cap err!\n");
         return -1;
     }
 
@@ -246,7 +184,6 @@ ssize_t heap_insert(Heap* heap, Node* node) {
 
 ssize_t sort_heap_node(Heap* heap, size_t index) {
     if (index == 0) {
-        printf("index 0\n");
         return 0;
     }
     size_t parent_index = (index - 1) / 2;
@@ -313,32 +250,12 @@ Node* combine_nodes(Node* n1, Node* n2) {
         return NULL;
     }
 
-    // printf("1\n");
     new_node->symbol = 0xFF;
-    // printf("2\n");
     new_node->frequency = n1->frequency + n2->frequency;
-    // printf("3\n");
     new_node->l_node = n1;
-    // printf("4\n");
     new_node->r_node = n2;
 
-    // printf("\t-> |%X (%c): %zu\t", new_node->symbol, new_node->symbol, new_node->frequency);
-
     return new_node;
-}
-
-Node* build_tree(Node* priority_queue, size_t last_index) {
-    // printf("[combine]: %c (%zu) & %c (%zu)", priority_queue[last_index].symbol, priority_queue[last_index].frequency, priority_queue[last_index - 1].symbol, priority_queue[last_index - 1].frequency);
-    Node* last_node = combine_nodes(&priority_queue[last_index], &priority_queue[last_index - 1]);
-    // printf("-> %X (%zu)\n", last_node->symbol, last_node->frequency);
-
-    for (ssize_t i = last_index - 2; i >= 0; i--) {
-        // printf("[combine]: %c (%zu) & %c (%zu) ", priority_queue[i].symbol, priority_queue[i].frequency, last_node->symbol, last_node->frequency);
-        last_node = combine_nodes(&priority_queue[i], last_node);
-        // printf("-> %X (%zu)\n", last_node->symbol, last_node->frequency);
-    }
-
-    return last_node;
 }
 
 Node* build_heap_tree(Heap* heap) {
@@ -348,7 +265,7 @@ Node* build_heap_tree(Heap* heap) {
         if (n1 == NULL || n2 == NULL) {
             return NULL;
         }
-        printf("[combine]: %c (%zu) & %c (%zu)", n1->symbol, n1->frequency, n2->symbol, n2->frequency);
+        if (DEBUG) printf("[combine]: %c (%zu) & %c (%zu)", n1->symbol, n1->frequency, n2->symbol, n2->frequency);
 
         Node* new_node = combine_nodes(n1, n2);
         if (new_node == NULL) {
@@ -356,7 +273,7 @@ Node* build_heap_tree(Heap* heap) {
             free(n2);
             return NULL;
         }
-        printf("-> %X (%zu)\n", new_node->symbol, new_node->frequency);
+        if (DEBUG) printf("-> %X (%zu)\n", new_node->symbol, new_node->frequency);
 
         ssize_t index = heap_insert(heap, new_node);
         if (index == -1) {
@@ -366,18 +283,44 @@ Node* build_heap_tree(Heap* heap) {
             return NULL;
         }
 
+        free(new_node);
     }
-    return &heap->nodes[0];
+
+    if (heap->size == 1) {
+        Node* root = malloc(sizeof(Node));
+        if (root == NULL) {
+            fprintf(stderr, "[ERROR]: build_heap_tree() {} -> Unable to allocate memory for root!\n");
+            return NULL;
+        }
+        *root = heap->nodes[0]; // Copy the last node
+        return root;
+    }
+
+    return NULL;
 }
 
-void print_tree(Node* tree, int indent) {
-    if (tree == NULL) {
-        printf("%*c NULL\n", indent, ' ');
+void print_tree(Node* root, int indent) {
+    printf("%*s[%X (%c): (%zu)] ->\n", indent, " ", root->symbol, root->symbol, root->frequency);
+
+    if (root->r_node == NULL && root->l_node == NULL) {
         return;
-    }
-    printf("%*X (%c): [%zu] ->\n", indent, tree->symbol, tree->symbol, tree->frequency);
+    } 
+
     indent += 5;
-    print_tree(tree->r_node, indent);
-    print_tree(tree->l_node, indent);
-    // free(tree);
+    print_tree(root->r_node, indent);
+    print_tree(root->l_node, indent);
+}
+
+
+void free_tree(Node* root) {
+    if (root == NULL) {
+        return; // Base case: nothing to free
+    }
+    // Recursively free left and right subtrees
+    free_tree(root->r_node);
+    free_tree(root->l_node);
+    // Free the current node
+    if (DEBUG) printf("[free] %X: (%c)#%zu", root->symbol, root->symbol, root->frequency);
+    free(root);
+    if (DEBUG) printf(" [DONE!]\n");
 }
