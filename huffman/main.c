@@ -1,8 +1,10 @@
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#define printbits_n(x,n) for (int i=n;i;i--,putchar('0'|(x>>i)&1))
 #define DEBUG 1
 #define DEBUG_ 0
 #define READ_BUFFER_SIZE 256
@@ -25,12 +27,17 @@ typedef struct heap {
     size_t size;
 } Heap;
 
+typedef struct code {
+    uint64_t code;
+    uint8_t length;
+} Code;
+
 void log_allocator(void* ptr, const char* loc) {
-    printf("[allocate] %d %s: %p\n", allocator_count++, loc, ptr);
+    if (DEBUG) printf("[allocate] %d %s: %p\n", allocator_count++, loc, ptr);
 }
 
 void log_free(void* ptr, const char* loc) {
-    printf("[free] %d %s: %p\n", free_count++, loc, ptr);
+    if (DEBUG) printf("[free] %d %s: %p\n", free_count++, loc, ptr);
 }
 
 void print_heap(Heap* heap, const char* title) {
@@ -57,6 +64,7 @@ Node* build_tree(Heap* heap);
 void print_tree(Node* root, int indent); 
 void free_tree(Node* root);
 
+void generate_huffman_code(Code* code_table, uint64_t code, uint8_t depth, Node* node);
 FILE* open_file(const char* path, const char* mode);
 void output_file();
 
@@ -76,7 +84,7 @@ int main(void) {
 
     Heap* pq = create_priority_queue(freq_table);
     if (pq == NULL) {
-        if (DEBUG) log_free(freq_table, "E cpq");
+        log_free(freq_table, "E cpq");
         free(freq_table);
         fclose(file);
         return EXIT_FAILURE;
@@ -86,11 +94,11 @@ int main(void) {
 
     Node* root = build_tree(pq);
     if (root == NULL) {
-        if (DEBUG) log_free(freq_table, "E bht ft");
+        log_free(freq_table, "E bht ft");
         free(freq_table);
-        if (DEBUG) log_free(pq->nodes, "E bht pqn");
+        log_free(pq->nodes, "E bht pqn");
         free(pq->nodes);
-        if (DEBUG) log_free(pq, "E bht pq");
+        log_free(pq, "E bht pq");
         free(pq);
         fclose(file);
         return EXIT_FAILURE;
@@ -99,12 +107,33 @@ int main(void) {
 
     print_tree(root, 0);
 
-    if (DEBUG) log_free(freq_table, "main fq");
+    Code* code_table = malloc(FREQUENCY_TABLE_SIZE * sizeof(Code));
+    if (code_table == NULL) {
+        fprintf(stderr, "[ERROR]: main() {} -> Unable to allocate memory for code table!\n");
+        free(freq_table);
+        free_tree(root);
+        free(pq->nodes); 
+        free(pq);
+        fclose(file);
+        return EXIT_FAILURE;
+    }
+
+    generate_huffman_code(code_table, 0, 0, root);
+
+    printf("================|CODE TABLE|==================\n");
+    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
+        printf("%3zu. [%2llX]: ", i, i);
+        printbits_n(code_table[i].code, 64);
+        printf("\n");
+    }
+    printf("==============================================\n");
+
+    log_free(freq_table, "main fq");
     free(freq_table);
     free_tree(root);
-    if (DEBUG) log_free(pq->nodes, "main pqn");
+    log_free(pq->nodes, "main pqn");
     free(pq->nodes);
-    if (DEBUG) log_free(pq, "main pq");
+    log_free(pq, "main pq");
     free(pq);
     fclose(file);
     return 0;
@@ -127,14 +156,14 @@ size_t* count_run(FILE* file) {
         return NULL;
     }
     memset(frequency_table, 0, FREQUENCY_TABLE_SIZE * sizeof(size_t)); // set every value to zero, in order to start counting occurance
-    if (DEBUG) log_allocator(frequency_table, "count run fq");
+    log_allocator(frequency_table, "count run fq");
 
     char* read_buffer = malloc(READ_BUFFER_SIZE * sizeof(unsigned char));
     if (read_buffer == NULL) {
         fprintf(stderr, "[ERROR]: count_run() {} -> Unable to allocate memory for read buffer!\n");
         return NULL;
     }
-    if (DEBUG) log_allocator(read_buffer, "count run read");
+    log_allocator(read_buffer, "count run read");
 
     size_t read_bytes;
     while ( (read_bytes = fread(read_buffer, sizeof(unsigned char), READ_BUFFER_SIZE, file)) != 0) {
@@ -143,7 +172,7 @@ size_t* count_run(FILE* file) {
         }
     }
 
-    if (DEBUG) log_free(read_buffer, "count run read");
+    log_free(read_buffer, "count run read");
     free(read_buffer);
     return frequency_table;
 }
@@ -166,16 +195,16 @@ Heap* create_priority_queue(size_t* list) {
         fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue heap!\n");
         return NULL;
     }
-    if (DEBUG) log_allocator(priority_queue, "cpq pq");
+    log_allocator(priority_queue, "cpq pq");
 
     priority_queue->nodes = malloc(heap_size * sizeof(Node));
     if (priority_queue->nodes == NULL) {
         fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue nodes!\n");
-        if (DEBUG) log_free(priority_queue, "e cpq pq");
+        log_free(priority_queue, "e cpq pq");
         free(priority_queue);
         return NULL;
     }
-    if (DEBUG) log_allocator(priority_queue->nodes, "cpq pqn");
+    log_allocator(priority_queue->nodes, "cpq pqn");
 
     priority_queue->size = 0;
     priority_queue->max_size = heap_size;
@@ -187,9 +216,9 @@ Heap* create_priority_queue(size_t* list) {
             ssize_t node_index = heap_insert(priority_queue, &node);
             if (node_index == -1) {
                 fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Heap insert failed!\n");
-                if (DEBUG) log_free(priority_queue->nodes, "e for cpq pqn");
+                log_free(priority_queue->nodes, "e for cpq pqn");
                 free(priority_queue->nodes);
-                if (DEBUG) log_free(priority_queue, "e for cpq pq");
+                log_free(priority_queue, "e for cpq pq");
                 free(priority_queue);
                 return NULL;
             }
@@ -230,7 +259,7 @@ Node* heap_extract(Heap* heap) {
         fprintf(stderr, "[ERROR]: heap_extract() {} -> Unable to allocate memory for the node!\n");
         return NULL;
     }
-    if (DEBUG) log_allocator(node, "he n");
+    log_allocator(node, "he n");
 
     if (heap->size == 0) {
         fprintf(stderr, "[ERROR]: heap_extract() {} -> Heap is empty!\n");
@@ -277,7 +306,7 @@ Node* combine_nodes(Node* n1, Node* n2) {
         fprintf(stderr, "[ERROR]: combine_nodes() {} -> Unable to combine two nodes!\n");
         return NULL;
     }
-    if (DEBUG) log_allocator(new_node, "cn new");
+    log_allocator(new_node, "cn new");
 
     new_node->symbol = 0xFF;
     new_node->frequency = n1->frequency + n2->frequency;
@@ -298,9 +327,9 @@ Node* build_tree(Heap* heap) {
         Node* new_node = combine_nodes(n1, n2);
         if (DEBUG) printf("[combine]: %c (%zu) & %c (%zu)", n1->symbol, n1->frequency, n2->symbol, n2->frequency);
         if (new_node == NULL) {
-            if (DEBUG) log_free(n1, "e bht n1");
+            log_free(n1, "e bht n1");
             free(n1);
-            if (DEBUG) log_free(n2, "e bht n2");
+            log_free(n2, "e bht n2");
             free(n2);
             return NULL;
         }
@@ -308,15 +337,15 @@ Node* build_tree(Heap* heap) {
 
         ssize_t index = heap_insert(heap, new_node);
         if (index == -1) {
-            if (DEBUG) log_free(n1, "e index bht n1");
+            log_free(n1, "e index bht n1");
             free(n1);
-            if (DEBUG) log_free(n2, "e index bht n2");
+            log_free(n2, "e index bht n2");
             free(n2);
-            if (DEBUG) log_free(new_node, "e index bht new");
+            log_free(new_node, "e index bht new");
             free(new_node);
             return NULL;
         }
-        if (DEBUG) log_free(new_node, "bht new");
+        log_free(new_node, "bht new");
         free(new_node);
     }
 
@@ -344,8 +373,25 @@ void free_tree(Node* root) {
     free_tree(root->r_node);
     free_tree(root->l_node);
     // Free the current node
-    if (DEBUG) log_free(root, "freetree root");
+    log_free(root, "freetree root");
     // printf("%3d\t[free] %p %X: (%c)#%zu", free_counter++, root, root->symbol, root->symbol, root->frequency);
     free(root);
     // printf(" [DONE!]\n");
+}
+
+
+void generate_huffman_code(Code* code_table, uint64_t code, uint8_t depth, Node* node) {
+    if (node == NULL) return;
+    if (node->l_node == NULL && node->r_node == NULL) {
+        code_table[node->symbol].code = code; 
+        code_table[node->symbol].length = depth; 
+        return;
+    }
+
+    if (node->r_node != NULL) {
+        generate_huffman_code(code_table, (code << 1) | 1, depth + 1, node->r_node);
+    }
+    if (node->l_node != NULL) {
+        generate_huffman_code(code_table, (code << 1), depth + 1, node->l_node);
+    }
 }
