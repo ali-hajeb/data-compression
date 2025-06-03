@@ -9,6 +9,7 @@
 #define DEBUG_ 0
 #define READ_BUFFER_SIZE 256
 #define FREQUENCY_TABLE_SIZE 256
+#define OUTPUT_BUFFER_SIZE 1024
 
 static int allocator_count = 1;
 static int free_count = 1;
@@ -31,6 +32,12 @@ typedef struct code {
     uint64_t code;
     uint8_t length;
 } Code;
+
+typedef struct bitwriter {
+    FILE* file;
+    unsigned char buffer[OUTPUT_BUFFER_SIZE];
+    size_t bit_count;
+} Bitwriter;
 
 void log_allocator(void* ptr, const char* loc) {
     if (DEBUG) printf("[allocate] %d %s: %p\n", allocator_count++, loc, ptr);
@@ -65,6 +72,7 @@ void print_tree(Node* root, int indent);
 void free_tree(Node* root);
 
 void generate_huffman_code(Code* code_table, uint64_t code, uint8_t depth, Node* node);
+void write_bits(Bitwriter* bitwriter, uint32_t code, uint8_t length);
 FILE* open_file(const char* path, const char* mode);
 void output_file();
 
@@ -72,8 +80,8 @@ void encode();
 void decode();
 
 int main(void) {
-    FILE* file = open_file("./pic.bmp", "rb");
-    // FILE* file = open_file("./test", "rb");
+    // FILE* file = open_file("./pic.bmp", "rb");
+    FILE* file = open_file("./test", "rb");
     if (file == NULL) return EXIT_FAILURE;
     
     size_t* freq_table = count_run(file);
@@ -119,14 +127,6 @@ int main(void) {
     }
 
     generate_huffman_code(code_table, 0, 0, root);
-
-    printf("================|CODE TABLE|==================\n");
-    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
-        printf("%3zu. [%2llX]: ", i, i);
-        printbits_n(code_table[i].code, 64);
-        printf("\n");
-    }
-    printf("==============================================\n");
 
     log_free(freq_table, "main fq");
     free(freq_table);
@@ -385,6 +385,9 @@ void generate_huffman_code(Code* code_table, uint64_t code, uint8_t depth, Node*
     if (node->l_node == NULL && node->r_node == NULL) {
         code_table[node->symbol].code = code; 
         code_table[node->symbol].length = depth; 
+        printf("%2x -> ", node->symbol);
+        printbits_n(code_table[node->symbol].code, 64);
+        printf("\n");
         return;
     }
 
