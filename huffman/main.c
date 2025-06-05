@@ -129,7 +129,7 @@ int main(void) {
 
     generate_huffman_code(code_table, 0, 0, root);
 
-    Bitwriter* bit_writer = init_bitwriter(file);
+    Bitwriter* bit_writer = init_bitwriter(output_file);
     compress(file, output_file, bit_writer, code_table, freq_table);
 
     free(freq_table);
@@ -394,33 +394,60 @@ Bitwriter* init_bitwriter(FILE* file) {
     return bit_writer;
 }
 
-void write_bits(Bitwriter* bit_writer, uint32_t code, uint8_t length) {
+void write_bits(Bitwriter* writer, uint32_t code, uint8_t length) {
     if (length == 0) return;
-    uint64_t temp = ((uint64_t) length) << (64 - length);
-    size_t bits_left = length;
-    while (bits_left >= 0) {
-        size_t byte_idx = bit_writer->bit_count / 8;
-        size_t bit_idx = bit_writer->bit_count % 8;
-        size_t bits_to_write = bits_left < (8 - bit_idx) ? bits_left : (8 - bits_left);
-
-        if (bits_to_write >= OUTPUT_BUFFER_SIZE) {
-            fwrite(bit_writer->buffer, 1, OUTPUT_BUFFER_SIZE, bit_writer->file);
-            memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
-            bit_writer->bit_count = 0;
+    for (uint8_t i = 0; i < length; i++) {
+        size_t byte_idx = writer->bit_count / 8;
+        size_t bit_idx = writer->bit_count % 8;
+        if (byte_idx >= OUTPUT_BUFFER_SIZE) {
+            fwrite(writer->buffer, 1, OUTPUT_BUFFER_SIZE, writer->file);
+            memset(writer->buffer, 0, OUTPUT_BUFFER_SIZE);
+            writer->bit_count = 0;
             byte_idx = 0;
             bit_idx = 0;
         }
-
-        temp >>= bits_to_write;
-        bit_writer->buffer[byte_idx] |= (temp & ((1ULL << bits_to_write) - 1)) << (8 - bit_idx - bits_to_write);
-        bit_writer->bit_count += bits_to_write;
-        bits_left -= bits_to_write;
+        // Extract bit from code (MSB first)
+        int bit = (code >> (length - 1 - i)) & 1;
+        // Set bit in buffer
+        writer->buffer[byte_idx] |= (bit << (7 - bit_idx));
+        writer->bit_count++;
     }
 }
+// void write_bits(Bitwriter* bit_writer, uint32_t code, uint8_t length) {
+//     if (length == 0) return;
+//     uint64_t temp = ((uint64_t) code) << (64 - length);
+//     size_t bits_left = length;
+//     while (bits_left > 0) {
+//         size_t byte_idx = bit_writer->bit_count / 8;
+//         size_t bit_idx = bit_writer->bit_count % 8;
+//         size_t bits_to_write = bits_left < (8 - bit_idx) ? bits_left : (8 - bit_idx);
+//
+//         if (byte_idx >= OUTPUT_BUFFER_SIZE) {
+//             fwrite(bit_writer->buffer, 1, OUTPUT_BUFFER_SIZE, bit_writer->file);
+//             memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
+//             bit_writer->bit_count = 0;
+//             byte_idx = 0;
+//             bit_idx = 0;
+//         }
+//
+//         temp >>= bits_to_write;
+//         // bit_writer->buffer[byte_idx] |= (temp & ((1ULL << bits_to_write) - 1)) << (8 - bit_idx - bits_to_write);
+//         // printf("%zu > ", bits_left);
+//         // printbits_n(bit_writer->buffer[byte_idx], 32);
+//         // printf("\n");
+//         bit_writer->bit_count += bits_to_write;
+//         bits_left -= bits_to_write;
+//     }
+// }
 
 void flush_bits(Bitwriter* bit_writer) {
     size_t bytes = (bit_writer->bit_count + 7) / 8;
     if (bytes > 0) {
+        printf("here %zu\n", bytes);
+        printbits_n(bit_writer->buffer[0], 32);
+        printf("%s\n", bit_writer->buffer);
+        printbits_n(bit_writer->buffer[1], 32);
+        printf("%s\n", bit_writer->buffer);
         fwrite(bit_writer->buffer, 1, bytes, bit_writer->file);
     }
     memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
@@ -433,10 +460,13 @@ void encode(FILE* input_file, Bitwriter* bit_writer, Code* code_table) {
     fseek(input_file, 0, SEEK_SET);
 
     while((bytes_read = fread(read_buffer, 1, OUTPUT_BUFFER_SIZE, input_file)) > 0) {
-        for (size_t i = 0; i < OUTPUT_BUFFER_SIZE; i++) {
+        for (size_t i = 0; i < bytes_read; i++) {
             unsigned char symbol = read_buffer[i];
             if (code_table[symbol].length > 0) {
                 write_bits(bit_writer, code_table[symbol].code, code_table[symbol].length);
+                printf("[%2X]: ", symbol);
+                printbits_n(code_table[symbol].code, 32);
+                printf("\n");
             }
         }
     }
@@ -444,19 +474,27 @@ void encode(FILE* input_file, Bitwriter* bit_writer, Code* code_table) {
 }
 
 int compress(FILE* input_file, FILE* output_file, Bitwriter* bit_writer, Code* code_table, size_t* freq_table) {
-    size_t non_zero = 0;
+    unsigned char non_zero = 0;
+    size_t max_count = 0;
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (freq_table[i] > 0) {
             non_zero++;
+            if (freq_table[i] > max_count) {
+                max_count = freq_table[i];
+            }
         }
     }
-    fwrite(&non_zero, sizeof(size_t), 1, output_file);
+    fwrite(&non_zero, 1, 1, output_file);
 
+    max_count /= 255;
+    max_count++;
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (freq_table[i] > 0) {
             unsigned char symbol = (unsigned char) i;
             fwrite(&symbol, 1, 1, output_file);
-            fwrite(&freq_table[i], sizeof(size_t), 1, output_file);
+            unsigned char count = freq_table[i] / max_count;
+            if (count == 0) count++;
+            fwrite(&count, 1, 1, output_file);
         }
     }
 
