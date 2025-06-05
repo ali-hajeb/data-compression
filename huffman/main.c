@@ -77,7 +77,8 @@ Bitwriter* init_bitwriter(FILE* file);
 FILE* open_file(const char* path, const char* mode);
 void output_file();
 
-void encode();
+void encode(FILE* input_file, Bitwriter* bit_writer, Code* code_table);
+int compress(FILE* input_file, FILE* output_file, Bitwriter* bit_writer, Code* code_table, size_t* freq_table);
 void decode();
 
 int main(void) {
@@ -85,6 +86,9 @@ int main(void) {
     FILE* file = open_file("./test", "rb");
     if (file == NULL) return EXIT_FAILURE;
     
+    FILE* output_file = open_file("./test.huff", "wb");
+    if (output_file == NULL) return EXIT_FAILURE;
+
     size_t* freq_table = count_run(file);
     if (freq_table == NULL) {
         fclose(file);
@@ -125,10 +129,14 @@ int main(void) {
 
     generate_huffman_code(code_table, 0, 0, root);
 
+    Bitwriter* bit_writer = init_bitwriter(file);
+    compress(file, output_file, bit_writer, code_table, freq_table);
+
     free(freq_table);
     free_tree(root);
     free(pq->nodes);
     free(pq);
+    free(bit_writer);
     fclose(file);
     return 0;
 }
@@ -395,7 +403,7 @@ void write_bits(Bitwriter* bit_writer, uint32_t code, uint8_t length) {
         size_t bit_idx = bit_writer->bit_count % 8;
         size_t bits_to_write = bits_left < (8 - bit_idx) ? bits_left : (8 - bits_left);
 
-        if (bits_to_write > OUTPUT_BUFFER_SIZE) {
+        if (bits_to_write >= OUTPUT_BUFFER_SIZE) {
             fwrite(bit_writer->buffer, 1, OUTPUT_BUFFER_SIZE, bit_writer->file);
             memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
             bit_writer->bit_count = 0;
@@ -408,5 +416,52 @@ void write_bits(Bitwriter* bit_writer, uint32_t code, uint8_t length) {
         bit_writer->bit_count += bits_to_write;
         bits_left -= bits_to_write;
     }
+}
+
+void flush_bits(Bitwriter* bit_writer) {
+    size_t bytes = (bit_writer->bit_count + 7) / 8;
+    if (bytes > 0) {
+        fwrite(bit_writer->buffer, 1, bytes, bit_writer->file);
+    }
+    memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
+    bit_writer->bit_count = 0;
+}
+
+void encode(FILE* input_file, Bitwriter* bit_writer, Code* code_table) {
+    unsigned char read_buffer[OUTPUT_BUFFER_SIZE];
+    size_t bytes_read = 0;
+    fseek(input_file, 0, SEEK_SET);
+
+    while((bytes_read = fread(read_buffer, 1, OUTPUT_BUFFER_SIZE, input_file)) > 0) {
+        for (size_t i = 0; i < OUTPUT_BUFFER_SIZE; i++) {
+            unsigned char symbol = read_buffer[i];
+            if (code_table[symbol].length > 0) {
+                write_bits(bit_writer, code_table[symbol].code, code_table[symbol].length);
+            }
+        }
+    }
+    flush_bits(bit_writer);
+}
+
+int compress(FILE* input_file, FILE* output_file, Bitwriter* bit_writer, Code* code_table, size_t* freq_table) {
+    size_t non_zero = 0;
+    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
+        if (freq_table[i] > 0) {
+            non_zero++;
+        }
+    }
+    fwrite(&non_zero, sizeof(size_t), 1, output_file);
+
+    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
+        if (freq_table[i] > 0) {
+            unsigned char symbol = (unsigned char) i;
+            fwrite(&symbol, 1, 1, output_file);
+            fwrite(&freq_table[i], sizeof(size_t), 1, output_file);
+        }
+    }
+
+    printf("DONE table\n");
+    encode(input_file, bit_writer, code_table);
+    return 1;
 }
 
