@@ -1,4 +1,3 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,6 +137,7 @@ int main(void) {
     free(pq);
     free(bit_writer);
     fclose(file);
+    fclose(output_file);
     return 0;
 }
 
@@ -185,9 +185,17 @@ void swap(Node* p1, Node* p2) {
 
 Heap* create_priority_queue(size_t* list) {
     size_t heap_size = 0;
+    size_t max_count = 0;
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
-        if (list[i] != 0) heap_size++;
+        if (list[i] != 0) {
+            heap_size++;
+            if (list[i] > max_count) {
+                max_count = list[i];
+            }
+        }
     }
+    max_count /= 255;
+    max_count++;
 
     Heap* priority_queue = malloc(sizeof(Heap));
     if (priority_queue == NULL) {
@@ -208,7 +216,9 @@ Heap* create_priority_queue(size_t* list) {
 
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (list[i] != 0) {
-            Node node = { .symbol = (unsigned char)i, .frequency = list[i], .l_node = NULL, .r_node = NULL };
+            size_t frequency = list[i] / max_count;
+            if (max_count == 0) frequency = 1;
+            Node node = { .symbol = (unsigned char)i, .frequency = frequency, .l_node = NULL, .r_node = NULL };
             ssize_t node_index = heap_insert(priority_queue, &node);
             if (node_index == -1) {
                 fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Heap insert failed!\n");
@@ -413,32 +423,6 @@ void write_bits(Bitwriter* writer, uint32_t code, uint8_t length) {
         writer->bit_count++;
     }
 }
-// void write_bits(Bitwriter* bit_writer, uint32_t code, uint8_t length) {
-//     if (length == 0) return;
-//     uint64_t temp = ((uint64_t) code) << (64 - length);
-//     size_t bits_left = length;
-//     while (bits_left > 0) {
-//         size_t byte_idx = bit_writer->bit_count / 8;
-//         size_t bit_idx = bit_writer->bit_count % 8;
-//         size_t bits_to_write = bits_left < (8 - bit_idx) ? bits_left : (8 - bit_idx);
-//
-//         if (byte_idx >= OUTPUT_BUFFER_SIZE) {
-//             fwrite(bit_writer->buffer, 1, OUTPUT_BUFFER_SIZE, bit_writer->file);
-//             memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
-//             bit_writer->bit_count = 0;
-//             byte_idx = 0;
-//             bit_idx = 0;
-//         }
-//
-//         temp >>= bits_to_write;
-//         // bit_writer->buffer[byte_idx] |= (temp & ((1ULL << bits_to_write) - 1)) << (8 - bit_idx - bits_to_write);
-//         // printf("%zu > ", bits_left);
-//         // printbits_n(bit_writer->buffer[byte_idx], 32);
-//         // printf("\n");
-//         bit_writer->bit_count += bits_to_write;
-//         bits_left -= bits_to_write;
-//     }
-// }
 
 void flush_bits(Bitwriter* bit_writer) {
     size_t bytes = (bit_writer->bit_count + 7) / 8;
@@ -503,3 +487,43 @@ int compress(FILE* input_file, FILE* output_file, Bitwriter* bit_writer, Code* c
     return 1;
 }
 
+void decompress(FILE* input_file, FILE* output_file) {
+    size_t frequency_table[FREQUENCY_TABLE_SIZE];
+    unsigned char char_count = '0';
+    fseek(input_file, 0, SEEK_SET);
+    size_t read_bytes = fread(&char_count, sizeof(unsigned char), 1, input_file);
+    if (read_bytes < 0) {
+        fprintf(stderr, "[ERROR]: decompress() {} -> File is not valid!\n");
+        return;
+    }
+
+    unsigned char* buffer = malloc(char_count * sizeof(unsigned char) * 2);
+    if (buffer == NULL) {
+        fprintf(stderr, "[ERROR]: decompress() {} -> Unable to allocate memory for buffer!\n");
+        return;
+    }
+    read_bytes = fread(buffer, sizeof(unsigned char), char_count * 2, input_file);
+
+    for (unsigned char i = 0; i < char_count * 2; i += 2) {
+        unsigned char symbol = buffer[i];
+        unsigned char count = buffer[i + 1];
+        frequency_table[symbol] = count;
+    }
+
+    Heap* pq = create_priority_queue(frequency_table);
+    if (pq == NULL) {
+        return ;
+    }
+
+    if (DEBUG) print_heap(pq, "priority_queue");
+
+    Node* root = build_tree(pq);
+    if (root == NULL) {
+        free(pq->nodes);
+        free(pq);
+        return ;
+    }
+    if (DEBUG) print_heap(pq, "tree");
+
+    print_tree(root, 0);
+}
