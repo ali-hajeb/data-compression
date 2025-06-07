@@ -1,3 +1,5 @@
+#include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +80,7 @@ void output_file();
 
 void encode(FILE* input_file, Bitwriter* bit_writer, Code* code_table);
 int compress(FILE* input_file, FILE* output_file, Bitwriter* bit_writer, Code* code_table, size_t* freq_table);
+void decompress(FILE* input_file, FILE* output_file);
 void decode();
 
 int main(void) {
@@ -131,13 +134,20 @@ int main(void) {
     Bitwriter* bit_writer = init_bitwriter(output_file);
     compress(file, output_file, bit_writer, code_table, freq_table);
 
+    fclose(output_file);
+    FILE* dec = fopen("dec", "wb");
+    FILE* com = fopen("./test.huff", "rb");
+    decompress(com, dec);
+    
+    fclose(dec);
+    fclose(com);
+
     free(freq_table);
     free_tree(root);
     free(pq->nodes);
     free(pq);
     free(bit_writer);
     fclose(file);
-    fclose(output_file);
     return 0;
 }
 
@@ -217,8 +227,9 @@ Heap* create_priority_queue(size_t* list) {
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (list[i] != 0) {
             size_t frequency = list[i] / max_count;
-            if (max_count == 0) frequency = 1;
+            if (frequency == 0) frequency = 1;
             Node node = { .symbol = (unsigned char)i, .frequency = frequency, .l_node = NULL, .r_node = NULL };
+            printf("%2X --->> %zu %zu\n", i, list[i], frequency);
             ssize_t node_index = heap_insert(priority_queue, &node);
             if (node_index == -1) {
                 fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Heap insert failed!\n");
@@ -448,9 +459,6 @@ void encode(FILE* input_file, Bitwriter* bit_writer, Code* code_table) {
             unsigned char symbol = read_buffer[i];
             if (code_table[symbol].length > 0) {
                 write_bits(bit_writer, code_table[symbol].code, code_table[symbol].length);
-                printf("[%2X]: ", symbol);
-                printbits_n(code_table[symbol].code, 32);
-                printf("\n");
             }
         }
     }
@@ -488,14 +496,17 @@ int compress(FILE* input_file, FILE* output_file, Bitwriter* bit_writer, Code* c
 }
 
 void decompress(FILE* input_file, FILE* output_file) {
+    printf("====================================================\n");
     size_t frequency_table[FREQUENCY_TABLE_SIZE];
+    memset(&frequency_table, 0, FREQUENCY_TABLE_SIZE * sizeof(size_t));
     unsigned char char_count = '0';
     fseek(input_file, 0, SEEK_SET);
     size_t read_bytes = fread(&char_count, sizeof(unsigned char), 1, input_file);
-    if (read_bytes < 0) {
+    if (read_bytes <= 0) {
         fprintf(stderr, "[ERROR]: decompress() {} -> File is not valid!\n");
         return;
     }
+    printf("%d\n", char_count);
 
     unsigned char* buffer = malloc(char_count * sizeof(unsigned char) * 2);
     if (buffer == NULL) {
@@ -508,7 +519,9 @@ void decompress(FILE* input_file, FILE* output_file) {
         unsigned char symbol = buffer[i];
         unsigned char count = buffer[i + 1];
         frequency_table[symbol] = count;
+        printf("[%2X] -> %d\n", symbol, frequency_table[symbol]);
     }
+    free(buffer);
 
     Heap* pq = create_priority_queue(frequency_table);
     if (pq == NULL) {
@@ -526,4 +539,42 @@ void decompress(FILE* input_file, FILE* output_file) {
     if (DEBUG) print_heap(pq, "tree");
 
     print_tree(root, 0);
+
+    read_bytes = 0;
+    unsigned char* read_buffer = malloc(READ_BUFFER_SIZE);
+    if (read_buffer == NULL) {
+        fprintf(stderr, "[ERROR]: decompress() {} -> Unable to allocate memory for read_buffer!\n");
+        return;
+    }
+
+    Node node = *root;
+    while ((read_bytes = fread(read_buffer, 1, READ_BUFFER_SIZE, input_file)) > 0) {
+        for (size_t i = 0; i < read_bytes; i++) {
+            unsigned char byte = read_buffer[i];
+            printf("BYTE: ");
+            printbits_n(byte, 8);
+            printf("\n");
+            for (int j = CHAR_BIT - 1; j >= 0; j--) {
+                unsigned char mask = 1 << j;
+                printf("\n%d. MASK: ", j);
+                printbits_n(mask, 8);
+                printf("\n");
+                if ((byte & mask) != 0) {
+                    node = *node.r_node;
+                    printf("1");
+                } else {
+                    node = *node.l_node;
+                    printf("0");
+                }
+
+                if (node.l_node == NULL || node.r_node == NULL) {
+                    printf("\n%d. SYMBOL [%2X]\n", j, node.symbol);
+                    node = *root;
+                }
+            }
+        }
+    }
+        printf("SYMBOL [%2X]\n", node.symbol);
+
+    free(read_buffer);
 }
