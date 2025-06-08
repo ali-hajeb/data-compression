@@ -6,7 +6,7 @@
 #include <string.h>
 
 #define printbits_n(x,n) for (int i=n;i;i--,putchar('0'|(x>>i)&1))
-#define DEBUG 1
+#define DEBUG 0
 #define DEBUG_ 0
 #define READ_BUFFER_SIZE 256
 #define FREQUENCY_TABLE_SIZE 256
@@ -38,6 +38,7 @@ typedef struct bitwriter {
     FILE* file;
     unsigned char buffer[OUTPUT_BUFFER_SIZE];
     size_t bit_count;
+    size_t total_bits;
 } Bitwriter;
 
 void log_allocator(void* ptr, const char* loc) {
@@ -85,7 +86,8 @@ void decode();
 
 int main(void) {
     // FILE* file = open_file("./pic.bmp", "rb");
-    FILE* file = open_file("./test", "rb");
+    FILE* file = open_file("./test_files/pic-64.bmp", "rb");
+    // FILE* file = open_file("./test", "rb");
     if (file == NULL) return EXIT_FAILURE;
     
     FILE* output_file = open_file("./test.huff", "wb");
@@ -411,6 +413,7 @@ Bitwriter* init_bitwriter(FILE* file) {
     }
     bit_writer->file = file;
     bit_writer->bit_count = 0;
+    bit_writer->total_bits = 0;
     memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
     return bit_writer;
 }
@@ -432,6 +435,7 @@ void write_bits(Bitwriter* writer, uint32_t code, uint8_t length) {
         // Set bit in buffer
         writer->buffer[byte_idx] |= (bit << (7 - bit_idx));
         writer->bit_count++;
+        writer->total_bits++;
     }
 }
 
@@ -492,6 +496,10 @@ int compress(FILE* input_file, FILE* output_file, Bitwriter* bit_writer, Code* c
 
     printf("DONE table\n");
     encode(input_file, bit_writer, code_table);
+
+    size_t total_bits = bit_writer->total_bits;
+    printf("%zu =============\n", total_bits);
+    fwrite(&total_bits, sizeof(size_t), 1, output_file);
     return 1;
 }
 
@@ -515,13 +523,24 @@ void decompress(FILE* input_file, FILE* output_file) {
     }
     read_bytes = fread(buffer, sizeof(unsigned char), char_count * 2, input_file);
 
-    for (unsigned char i = 0; i < char_count * 2; i += 2) {
+    for (int i = 0; i < char_count * 2; i += 2) {
+        printf("\r%d", i);
+        if (i >= char_count * 2) printf("\n");
         unsigned char symbol = buffer[i];
         unsigned char count = buffer[i + 1];
         frequency_table[symbol] = count;
-        printf("[%2X] -> %d\n", symbol, frequency_table[symbol]);
+        // printf("[%2X] -> %d\n", symbol, frequency_table[symbol]);
     }
+    printf("FREQ_TABLE\n");
     free(buffer);
+    size_t bit_count = 0;
+    size_t current_pos = ftell(input_file);
+    fseek(input_file, -1 * sizeof(size_t), SEEK_END);
+    printf("+++ %ld\n", ftell(input_file));
+    fread(&bit_count, sizeof(size_t), 1, input_file);
+    printf(">>> %zu %d ----\n", bit_count, sizeof(size_t));
+    fseek(input_file, current_pos, SEEK_SET);
+    printf("bit count\n");
 
     Heap* pq = create_priority_queue(frequency_table);
     if (pq == NULL) {
@@ -547,34 +566,43 @@ void decompress(FILE* input_file, FILE* output_file) {
         return;
     }
 
+    unsigned char* output_buffer = malloc(1024 * sizeof(unsigned char));
+    if (output_buffer == NULL) {
+        fprintf(stderr, "[ERROR]: decompress() {} -> Unable to allocate memory for output_buffer!\n");
+        return;
+    }
+
+    size_t output_pos = 0;
+    size_t read_bits = 0;
     Node node = *root;
     while ((read_bytes = fread(read_buffer, 1, READ_BUFFER_SIZE, input_file)) > 0) {
         for (size_t i = 0; i < read_bytes; i++) {
             unsigned char byte = read_buffer[i];
-            printf("BYTE: ");
-            printbits_n(byte, 8);
-            printf("\n");
             for (int j = CHAR_BIT - 1; j >= 0; j--) {
+                if (read_bits >= bit_count) break;
                 unsigned char mask = 1 << j;
-                printf("\n%d. MASK: ", j);
-                printbits_n(mask, 8);
-                printf("\n");
                 if ((byte & mask) != 0) {
                     node = *node.r_node;
-                    printf("1");
                 } else {
                     node = *node.l_node;
-                    printf("0");
                 }
 
                 if (node.l_node == NULL || node.r_node == NULL) {
-                    printf("\n%d. SYMBOL [%2X]\n", j, node.symbol);
+                    output_buffer[output_pos++] = node.symbol;
+                    if (output_pos >= 1024) {
+                        fwrite(output_buffer, 1, 1024, output_file);
+                        output_pos = 0;
+                    }
                     node = *root;
                 }
+                read_bits++;
             }
         }
     }
-        printf("SYMBOL [%2X]\n", node.symbol);
+    if (output_pos > 0) {
+        fwrite(output_buffer, 1, output_pos, output_file);
+        output_pos = 0;
+    }
 
     free(read_buffer);
 }
