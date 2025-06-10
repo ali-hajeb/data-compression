@@ -134,11 +134,13 @@ BitReader* init_reader(FILE* file) {
 *  returns: The value of the bit. if failed, returns -1.
 */
 int read_bits(BitReader* bit_reader) {
+    // Reset read_buffer
     if (bit_reader->bit_pos == 8) {
+        // Read new data
         if (bit_reader->buffer_pos >= bit_reader->buffer_size) {
             bit_reader->buffer_size = fread(bit_reader->buffer, 1, READ_BUFFER_SIZE, bit_reader->file);
-            bit_reader->buffer_pos = 0;
             if (bit_reader->buffer_size == 0) return -1;
+            bit_reader->buffer_pos = 0;
         }
         bit_reader->bit_pos = 0;
         bit_reader->buffer_pos++;
