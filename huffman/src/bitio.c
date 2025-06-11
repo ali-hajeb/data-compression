@@ -105,7 +105,7 @@ ssize_t flush_writer(BitWriter* bit_writer) {
 * ---------------------
 *  Initiates a BitReader object and sets the defaults.
 *
-*  file: A pointer to a file object
+*  file: A pointer to the input file object
 *
 *  returns: A BitReader object. If failed, returns NULL.
 */
