@@ -1,6 +1,7 @@
 #include "../include/bitio.h"
 
 #include <corecrt.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -16,7 +17,7 @@
 BitWriter* init_writer(FILE* file) {
     BitWriter* bit_writer = malloc(sizeof(BitWriter));
     if (bit_writer == NULL) {
-        fprintf(stderr, "[ERROR]: init_writer() {} -> Unable to allocate memory for bit_writer!\n");
+        fprintf(stderr, "\n[ERROR]: init_writer() {} -> Unable to allocate memory for bit_writer!\n");
         return NULL;
     }
     bit_writer->file = file;
@@ -51,8 +52,8 @@ ssize_t write_bits(BitWriter* bit_writer, uint32_t code, uint8_t length) {
         // Flush writer buffer
         if (byte_idx >= OUTPUT_BUFFER_SIZE) {
             size_t written_bytes = fwrite(bit_writer->buffer, 1, OUTPUT_BUFFER_SIZE, bit_writer->file);
-            if (written_bytes == 0) {
-                fprintf(stderr, "[ERROR]: init_bitwriter() {} -> Unable to flush the bit_writer!\n");
+            if (written_bytes <= 0) {
+                fprintf(stderr, "\n[ERROR]: init_bitwriter() {} -> Unable to flush the bit_writer!\n");
                 return -1;
             }
 
@@ -90,7 +91,7 @@ ssize_t flush_writer(BitWriter* bit_writer) {
     if (bytes > 0) {
         written_bytes = fwrite(bit_writer->buffer, 1, bytes, bit_writer->file);
         if (written_bytes == 0) {
-            fprintf(stderr, "[ERROR]: flush_writer() {} -> Unable to flush the bit_writer!\n");
+            fprintf(stderr, "\n[ERROR]: flush_writer() {} -> Unable to flush the bit_writer!\n");
             return -1;
         }
     }
@@ -112,7 +113,7 @@ ssize_t flush_writer(BitWriter* bit_writer) {
 BitReader* init_reader(FILE* file) {
     BitReader* bit_reader = malloc(sizeof(BitReader));
     if (bit_reader == NULL) {
-        fprintf(stderr, "[ERROR]: init_reader() {} -> Unable to allocate memory for bit_reader!\n");
+        fprintf(stderr, "\n[ERROR]: init_reader() {} -> Unable to allocate memory for bit_reader!\n");
         return NULL;
     }
     bit_reader->file = file;
@@ -120,7 +121,7 @@ BitReader* init_reader(FILE* file) {
     bit_reader->bits_read = 0;
     bit_reader->buffer_pos = 0;
     bit_reader->buffer_size = 0;
-    memset(bit_reader->buffer, 0, OUTPUT_BUFFER_SIZE);
+    memset(bit_reader->buffer, 0, READ_BUFFER_SIZE);
     return bit_reader;
 }
 
@@ -139,7 +140,9 @@ int read_bits(BitReader* bit_reader) {
         // Read new data
         if (bit_reader->buffer_pos >= bit_reader->buffer_size) {
             bit_reader->buffer_size = fread(bit_reader->buffer, 1, READ_BUFFER_SIZE, bit_reader->file);
-            if (bit_reader->buffer_size == 0) return -1;
+            if (bit_reader->buffer_size == 0) {
+                return -1;
+            }
             bit_reader->buffer_pos = 0;
         }
         bit_reader->bit_pos = 0;

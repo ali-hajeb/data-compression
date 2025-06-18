@@ -45,13 +45,13 @@ Heap* create_priority_queue(size_t* list) {
     // Initialize the min-heap
     Heap* priority_queue = malloc(sizeof(Heap));
     if (priority_queue == NULL) {
-        fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue heap!\n");
+        fprintf(stderr, "\n[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue heap!\n");
         return NULL;
     }
 
     priority_queue->nodes = malloc(heap_size * sizeof(Node));
     if (priority_queue->nodes == NULL) {
-        fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue nodes!\n");
+        fprintf(stderr, "\n[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue nodes!\n");
         free(priority_queue);
         return NULL;
     }
@@ -71,7 +71,7 @@ Heap* create_priority_queue(size_t* list) {
             // Insert the new node to heap node list
             ssize_t node_index = heap_insert(priority_queue, &node);
             if (node_index == -1) {
-                fprintf(stderr, "[ERROR]: create_priority_queue() {} -> Heap insert failed!\n");
+                fprintf(stderr, "\n[ERROR]: create_priority_queue() {} -> Heap insert failed!\n");
                 free(priority_queue->nodes);
                 free(priority_queue);
                 return NULL;
@@ -154,13 +154,13 @@ ssize_t sort_heap_node(Heap* heap, size_t index) {
 */
 Node* heap_extract(Heap* heap) {
     if (heap->size == 0) {
-        fprintf(stderr, "[ERROR]: heap_extract() {} -> Heap is empty!\n");
+        fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Heap is empty!\n");
         return NULL;
     }
     
     Node* node = malloc(sizeof(Node));
     if (node == NULL) {
-        fprintf(stderr, "[ERROR]: heap_extract() {} -> Unable to allocate memory for the node!\n");
+        fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Unable to allocate memory for the node!\n");
         return NULL;
     }
 
@@ -222,7 +222,7 @@ size_t sort_heap(Heap* heap, size_t index) {
 Node* combine_nodes(Node* n1, Node* n2) {
     Node* new_node = malloc(sizeof(Node));
     if (new_node == NULL) {
-        fprintf(stderr, "[ERROR]: combine_nodes() {} -> Unable to combine two nodes!\n");
+        fprintf(stderr, "\n[ERROR]: combine_nodes() {} -> Unable to combine two nodes!\n");
         return NULL;
     }
 
@@ -292,7 +292,7 @@ void print_tree(Node* root, int indent) {
 }
 
 void print_heap(Heap* heap, const char* title) {
-    printf("===========| %s |===========\n", title);
+    printf("\n===========| %s |===========\n", title);
     for (size_t i = 0; i < heap->size; i++) {
         printf("[%2X]: %c (%zu)\n", heap->nodes[i].symbol, heap->nodes[i].symbol, heap->nodes[i].frequency);
     }

@@ -24,6 +24,18 @@ typedef struct {
 size_t* count_run(FILE* file);
 
 /*
+* Function: read_file_header
+* --------------------------
+*  Reads the header information of compressed file.
+*
+*  input_file: Pointer to the compressed file
+*  bit_count: Pointer to the variable storing total bit count
+*
+*  returns: Frequency table
+*/
+size_t* read_file_header(FILE* input_file, size_t* bit_count);
+
+/*
 * Function: generate_huffman_code
 * -------------------------------
 *  Generates binary codes based on the huffman tree for every leaf node
@@ -43,8 +55,10 @@ void generate_huffman_code(Code* code_table, uint32_t code, uint8_t depth, Node*
 *  input_file: Pointer to the file to be encoded
 *  bit_writer: Pointer to the BitWriter object
 *  code_table: Pointer to the code table
+*
+*  returns: If failed (0), On success (1)
 */
-void encode(FILE* input_file, BitWriter* bit_writer, Code* code_table);
+int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table);
 
 /*
 * Function: decode
@@ -55,6 +69,8 @@ void encode(FILE* input_file, BitWriter* bit_writer, Code* code_table);
 *  bit_reader: Pointer to a BitReader object.
 *  root: Pointer to the root node of the huffman tree.
 *  total_bits: Number of encoded bits.
+*
+*  returns: If failed (0), on success (1)
 */
-void decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bits);
+int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bits);
 #endif
