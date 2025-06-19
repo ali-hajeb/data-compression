@@ -44,6 +44,45 @@ size_t* count_run(FILE* file) {
 }
 
 /*
+* Function: write_file_header
+* ---------------------------
+*  Writes header information to the output file
+*
+*  output_file: Pointer to the output file
+*  frequency_table: Pointer to the frequency table
+*
+*  returns: If failed (0), on success (1)
+*/
+int write_file_header(FILE* output_file, size_t* frequency_table) {
+    size_t max_value = 0;
+    size_t list_size = get_list_size(frequency_table, &max_value);
+    fwrite(&list_size, sizeof(unsigned char), 1, output_file);
+
+    HeaderFrequencyTable* header_frequency_table = malloc(list_size * sizeof(HeaderFrequencyTable));
+    if (header_frequency_table == NULL) {
+        fprintf(stderr, "\n[ERROR]: write_file_header() {} -> Unable to allocate memory for header frequency table!\n");
+        return 0;
+    }
+    size_t header_frequency_table_idx = 0; 
+
+    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE && header_frequency_table_idx < list_size; i++) {
+        if (frequency_table[i] > 0) {
+            header_frequency_table[header_frequency_table_idx].symbol = (unsigned char) i;
+            header_frequency_table[header_frequency_table_idx].frequency = frequency_table[i] / max_value;
+            if (header_frequency_table[header_frequency_table_idx].frequency == 0) {
+                header_frequency_table[header_frequency_table_idx].frequency++;
+            }
+            header_frequency_table_idx++;
+        }
+    }
+    size_t written_bytes = fwrite(header_frequency_table, sizeof(HeaderFrequencyTable), list_size, output_file);
+    if (written_bytes < list_size) {
+        fprintf(stderr, "\n[ERROR]: write_file_header() {} -> Unable to write header!\n");
+        return 0;
+    }
+    return 1;
+}
+/*
 * Function: read_file_header
 * --------------------------
 *  Reads the header information of compressed file.
@@ -81,6 +120,7 @@ size_t* read_file_header(FILE* input_file, size_t* bit_count) {
         return NULL;
     }
 
+    // Read file's frequency table and import it
     for (int i = 0; i < char_count * 2; i += 2) {
         if (i >= char_count * 2) printf("\n");
         unsigned char symbol = read_buffer[i];
@@ -89,6 +129,8 @@ size_t* read_file_header(FILE* input_file, size_t* bit_count) {
     }
 
     free(read_buffer);
+
+    // Read total encoded bits count at the end of the file
     size_t header_end_pos = ftell(input_file);
     long total_bits_pos = sizeof(size_t);
     fseek(input_file, -1 * total_bits_pos, SEEK_END);
@@ -145,6 +187,7 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
     while((bytes_read = fread(read_buffer, 1, READ_BUFFER_SIZE, input_file)) > 0) {
         for (size_t i = 0; i < bytes_read; i++) {
             unsigned char symbol = read_buffer[i];
+            // Encode symbol to huffman bits
             if (code_table[symbol].length > 0) {
                 int status = write_bits(bit_writer, code_table[symbol].code, code_table[symbol].length);
                 if (status == -1) {
@@ -153,11 +196,12 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
             }
         }
         processed += bytes_read;
-        if (processed % (100 * KB)) {
-            printf("\rProcessing: %lld/%lld bytes. -> %ld bytes.", processed, file_size, ftell(bit_writer->file));
+        if (processed % (100 * KB) == 0) {
+            printf("\rProcessing: %lld/%lld bytes...", processed, file_size);
         }
     }
 
+    // Flush the remaining data in writer to the file
     int status = flush_writer(bit_writer);
     if (status == -1) {
         return 0;
@@ -186,7 +230,6 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
     size_t processed = ftell(bit_reader->file);
     Node* current = root;
 
-    printf("%zu\n", total_bits);
     while (bit_reader->bits_read < total_bits) {
         int bit = read_bits(bit_reader);
         if (bit == -1) {
@@ -199,26 +242,28 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
             // Flush output_buffer
             if (out_pos == OUTPUT_BUFFER_SIZE) {
                 size_t written_bytes = fwrite(out_buffer, 1, OUTPUT_BUFFER_SIZE, output_file);
-                if (written_bytes <= 0) {
+                if (written_bytes < OUTPUT_BUFFER_SIZE) {
                     return 0;
                 }
                 out_pos = 0;
             }
             current = root;
         }
-        processed += bit_reader->bits_read;
-        if ((processed / 8) % (100 * KB)) {
-            printf("\rProcessing: %lld/%lld bytes. -> %ld bytes.", processed / 8, file_size, ftell(output_file));
+        size_t read_bytes = bit_reader->bits_read / 8;
+        if (read_bytes % (100 * KB) == 0) {
+            printf("\rProcessing: %lld/%lld bytes...", processed + read_bytes, file_size);
         }
     }
 
+    // Flush the remaining data in writer to the file
     if (out_pos > 0) {
         size_t written_bytes = fwrite(out_buffer, 1, out_pos, output_file);
-        if (written_bytes <= 0) {
+        if (written_bytes < out_pos) {
             return 0;
         }
     }
-    printf("\rProcessing: %lld/%lld bytes. -> %ld bytes.\n", processed / 8, file_size, ftell(output_file));
+    size_t read_bytes = bit_reader->bits_read / 8;
+    printf("\rProcessing: %lld/%lld bytes. -> %ld bytes.\n", processed + read_bytes, file_size, ftell(output_file));
 
     return 1;
 }
