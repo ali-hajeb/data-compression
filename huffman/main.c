@@ -15,13 +15,14 @@ int decompress(FILE* input_file, FILE* output_file);
 
 int main(int argc, char* argv[]) {
     int opt;
-    int verbose_mode = 0;
     int compress_mode = 0;
     int decompress_mode = 0;
     int output_file_mode = 0;
+    // int verbose_mode = 0;
     char* output_file_path = NULL;
     char* input_file_path = NULL;
 
+    // Setting up the CLI
     while ((opt = getopt(argc, argv, "c:d:o:v")) != -1) {
         switch (opt) {
             case 'c':
@@ -62,7 +63,7 @@ int main(int argc, char* argv[]) {
                 strcpy(output_file_path, optarg);
                 break;
             case 'v':
-                verbose_mode = 1;
+                // verbose_mode = 1;
                 break;
             default:
                 fprintf(stderr, "[USAGE]: %s [-c filename] [-d filename] [-o output_file_name] [-v]\n\t-c: compress file\n\t-d: decompress file\n\t-o: output file\n\t-v: print logs\n\r", argv[0]);
@@ -70,7 +71,9 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // Compression mode:
     if (compress_mode && !decompress_mode) {
+        // If user did not specify an output path, add '.huf' at the end of the input file
         if (!output_file_mode) {
             size_t output_file_size = strlen(input_file_path) + strlen(".huf") + 1;
             output_file_path = malloc(output_file_size);
@@ -92,7 +95,7 @@ int main(int argc, char* argv[]) {
         int status = compress(input_file, output_file);
         fclose(input_file);
         fclose(output_file);
-        printf("--->> Compression ");
+        printf("\n--->> Compression ");
         if (status) {
             printf("completed!\n");
         } else {
@@ -100,7 +103,12 @@ int main(int argc, char* argv[]) {
             remove(output_file_path);
         }
 
-    } else if (decompress_mode && !compress_mode) {
+    } 
+    // Decompression mode
+    else if (decompress_mode && !compress_mode) {
+        // If user did not specify an output path:
+        //  - If file has .huf at the end, remove it
+        //  - Or use the same path as input
         if (!output_file_mode) {
             char* filename = NULL;
             char* file_extention = NULL;
@@ -139,7 +147,7 @@ int main(int argc, char* argv[]) {
         int status = decompress(input_file, output_file);
         fclose(input_file);
         fclose(output_file);
-        printf("--->> Decompression ");
+        printf("\n--->> Decompression ");
         if (status) {
             printf("completed!\n");
         } else {
@@ -154,28 +162,32 @@ int main(int argc, char* argv[]) {
 }
 
 int compress(FILE* input_file, FILE* output_file) {
-    size_t* frequencty_table = count_run(input_file);
-    if (frequencty_table == NULL) {
+    // Generate frequency table
+    size_t* frequency_table = count_run(input_file);
+    if (frequency_table == NULL) {
         return 0;
     }
 
-    Heap* priority_queue = create_priority_queue(frequencty_table);
+    // Create a min-heap structure for nodes
+    Heap* priority_queue = create_priority_queue(frequency_table);
     if (priority_queue == NULL) {
-        free(frequencty_table);
+        free(frequency_table);
         return 0;
     }
     
+    // Create a binary huffman tree
     Node* root = build_tree(priority_queue);
     if (root == NULL) {
-        free(frequencty_table);
+        free(frequency_table);
         free(priority_queue->nodes);
         free(priority_queue);
         return 0;
     }
 
+    // Create a table for the huffman encoded symbols
     Code* code_table = malloc(FREQUENCY_TABLE_SIZE * sizeof(Code));
     if (code_table == NULL) {
-        free(frequencty_table);
+        free(frequency_table);
         free(priority_queue->nodes);
         free(priority_queue);
         free_tree(root);
@@ -186,7 +198,7 @@ int compress(FILE* input_file, FILE* output_file) {
 
     BitWriter* bit_writer = init_writer(output_file);
     if (bit_writer == NULL) {
-        free(frequencty_table);
+        free(frequency_table);
         free(priority_queue->nodes);
         free(priority_queue);
         free(code_table);
@@ -194,21 +206,10 @@ int compress(FILE* input_file, FILE* output_file) {
         return 0;
     }
 
-    size_t max_value = 0;
-    size_t list_size = get_list_size(frequencty_table, &max_value);
-    fwrite(&list_size, sizeof(unsigned char), 1, output_file);
-
-    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
-        if (frequencty_table[i] > 0) {
-            unsigned char symbol = (unsigned char) i;
-            fwrite(&symbol, sizeof(unsigned char), 1, output_file);
-            fwrite(&frequencty_table[i], sizeof(unsigned char), 1, output_file);
-        }
-    }
-
-    int status = encode(input_file, bit_writer, code_table);
-    if (status == 0) {
-        free(frequencty_table);
+    // Write file header (Read the readme file for more information about the compressed file structure)
+    int header_status = write_file_header(output_file, frequency_table);
+    if (header_status == 0) {
+        free(frequency_table);
         free(priority_queue->nodes);
         free(priority_queue);
         free(code_table);
@@ -216,11 +217,24 @@ int compress(FILE* input_file, FILE* output_file) {
         free_tree(root);
         return 0;
     }
+
+    // Encode and compress file
+    int status = encode(input_file, bit_writer, code_table);
+    if (status == 0) {
+        free(frequency_table);
+        free(priority_queue->nodes);
+        free(priority_queue);
+        free(code_table);
+        free(bit_writer);
+        free_tree(root);
+        return 0;
+    }
+
+    // Write the total bits
     size_t total_bits = bit_writer->total_bits;
-    printf("%zu ...\n", total_bits);
     fwrite(&total_bits, sizeof(size_t), 1, output_file);
 
-    free(frequencty_table);
+    free(frequency_table);
     free(priority_queue->nodes);
     free(priority_queue);
     free(code_table);
