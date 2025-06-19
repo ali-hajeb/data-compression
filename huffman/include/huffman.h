@@ -12,6 +12,11 @@ typedef struct {
     uint8_t length;
 } Code;
 
+typedef struct {
+    unsigned char symbol;
+    unsigned char frequency;
+} HeaderFrequencyTable;
+
 /*
 * Function: count_run
 * -------------------
@@ -22,6 +27,18 @@ typedef struct {
 *  returns: Array of frequencies
 */
 size_t* count_run(FILE* file);
+
+/*
+* Function: write_file_header
+* ---------------------------
+*  Writes header information to the output file
+*
+*  output_file: Pointer to the output file
+*  frequency_table: Pointer to the frequency table
+*
+*  returns: If failed (0), on success (1)
+*/
+int write_file_header(FILE* output_file, size_t* frequency_table);
 
 /*
 * Function: read_file_header
