@@ -2,7 +2,6 @@
 #define BITIO_H
 #include "constants.h"
 
-#include <corecrt.h>
 #include <stdint.h>
 #include <stdio.h>
 

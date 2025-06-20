@@ -5,7 +5,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <corecrt.h>
 
 typedef struct {
     uint32_t code;

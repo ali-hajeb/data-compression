@@ -1,6 +1,6 @@
 #ifndef MINHEAP_H
 #define MINHEAP_H
-#include <corecrt.h>
+#include <sys/types.h>
 
 typedef struct node {
     unsigned char symbol;

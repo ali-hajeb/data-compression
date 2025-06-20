@@ -1,6 +1,5 @@
 #include "../include/bitio.h"
 
-#include <corecrt.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -52,7 +51,7 @@ ssize_t write_bits(BitWriter* bit_writer, uint32_t code, uint8_t length) {
         // Flush writer buffer
         if (byte_idx >= OUTPUT_BUFFER_SIZE) {
             size_t written_bytes = fwrite(bit_writer->buffer, 1, OUTPUT_BUFFER_SIZE, bit_writer->file);
-            if (written_bytes <= 0) {
+            if (written_bytes < OUTPUT_BUFFER_SIZE) {
                 fprintf(stderr, "\n[ERROR]: init_bitwriter() {} -> Unable to flush the bit_writer!\n");
                 return -1;
             }

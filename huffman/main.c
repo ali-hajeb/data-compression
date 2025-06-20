@@ -4,10 +4,10 @@
 #include "include/minheap.h"
 #include "include/huffman.h"
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 int compress(FILE* input_file, FILE* output_file);
@@ -27,7 +27,8 @@ int main(int argc, char* argv[]) {
         switch (opt) {
             case 'c':
                 if (decompress_mode) {
-                    err("main", "Invalid flag combination!\n\tCan't use -c and -d at the same time.\n");
+                    err("main", "Invalid flag combination!"
+                                "\n\tCan't use -c and -d at the same time.\n");
                     return EXIT_FAILURE;
                 }
                 compress_mode = 1;
@@ -41,7 +42,8 @@ int main(int argc, char* argv[]) {
                 break;
             case 'd':
                 if (compress_mode) {
-                    err("main", "Invalid flag combination!\n\tCan't use -c and -d at the same time.\n");
+                    err("main", "Invalid flag combination!"
+                                "\n\tCan't use -c and -d at the same time.\n");
                     return EXIT_FAILURE;
                 }
                 decompress_mode = 1;
@@ -66,7 +68,11 @@ int main(int argc, char* argv[]) {
                 // verbose_mode = 1;
                 break;
             default:
-                fprintf(stderr, "[USAGE]: %s [-c filename] [-d filename] [-o output_file_name] [-v]\n\t-c: compress file\n\t-d: decompress file\n\t-o: output file\n\t-v: print logs\n\r", argv[0]);
+                fprintf(stderr, "[USAGE]: %s [-c filename] [-d filename] [-o output_file_name] [-v]"
+                                "\n\t-c: compress file"
+                                "\n\t-d: decompress file"
+                                "\n\t-o: output file"
+                                "\n\t-v: print logs\n\r", argv[0]);
                 return EXIT_FAILURE;
         }
     }
@@ -117,7 +123,7 @@ int main(int argc, char* argv[]) {
             if (status == -1) {
                 err("main", "Invalid input file path!\n");
                 return EXIT_FAILURE;
-            } else if (status == 2 && (strcmp(strlwr(file_extention), "huf") == 0)) {
+            } else if (status == 2 && (strcasecmp(file_extention, "huf") == 0)) {
                 size_t output_file_size = strlen(input_file_path) - strlen(".huf") + 1;
                 output_file_path = malloc(output_file_size);
                 if (output_file_path == NULL) {
@@ -232,7 +238,8 @@ int compress(FILE* input_file, FILE* output_file) {
 
     // Write the total bits
     size_t total_bits = bit_writer->total_bits;
-    fwrite(&total_bits, sizeof(size_t), 1, output_file);
+    printf("total: %zu\n", total_bits);
+    size_t written_bytes = fwrite(&total_bits, sizeof(size_t), 1, output_file);
 
     free(frequency_table);
     free(priority_queue->nodes);
@@ -240,7 +247,7 @@ int compress(FILE* input_file, FILE* output_file) {
     free(code_table);
     free(bit_writer);
     free_tree(root);
-    return 1;
+    return written_bytes;
 }
 
 int decompress(FILE* input_file, FILE* output_file) {

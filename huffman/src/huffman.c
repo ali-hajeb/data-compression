@@ -56,7 +56,14 @@ size_t* count_run(FILE* file) {
 int write_file_header(FILE* output_file, size_t* frequency_table) {
     size_t max_value = 0;
     size_t list_size = get_list_size(frequency_table, &max_value);
-    fwrite(&list_size, sizeof(unsigned char), 1, output_file);
+    if (list_size == 0) {
+        fprintf(stderr, "\n[ERROR]: write_file_header() {} -> Frequency table is all zero!\n");
+        return 0;
+    }
+    list_size--; // to avoid using extra byte for the value 256.
+    if (fwrite(&list_size, sizeof(unsigned char), 1, output_file) < 1) return 0;
+    list_size++;
+    printf("%zu\n", list_size);
 
     HeaderFrequencyTable* header_frequency_table = malloc(list_size * sizeof(HeaderFrequencyTable));
     if (header_frequency_table == NULL) {
@@ -101,28 +108,30 @@ size_t* read_file_header(FILE* input_file, size_t* bit_count) {
     // set every value to zero, in order to start counting occurance
     memset(frequency_table, 0, FREQUENCY_TABLE_SIZE * sizeof(size_t)); 
 
-    size_t char_count = 0;
+    size_t list_size = 0;
     fseek(input_file, 0, SEEK_SET);
-    size_t read_bytes = fread(&char_count, 1, 1, input_file);
+    size_t read_bytes = fread(&list_size, 1, 1, input_file);
     if (read_bytes <= 0) {
-        fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted! %zu\n", char_count);
+        fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted! %zu\n", list_size);
         return NULL;
     }
+    list_size++; // increase list_size by 1, because it was decreased by 1 when it was saved
+    printf("%zu\n", list_size);
 
-    unsigned char* read_buffer = malloc(char_count * sizeof(unsigned char) * 2);
+    unsigned char* read_buffer = malloc(list_size * sizeof(unsigned char) * 2);
     if (read_buffer == NULL) {
         fprintf(stderr, "\n[ERROR]: decompress() {} -> Unable to allocate memory for buffer!\n");
         return NULL;
     }
-    read_bytes = fread(read_buffer, sizeof(unsigned char), char_count * 2, input_file);
+    read_bytes = fread(read_buffer, sizeof(unsigned char), list_size * 2, input_file);
     if (read_bytes <= 0) {
         fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
         return NULL;
     }
 
     // Read file's frequency table and import it
-    for (int i = 0; i < char_count * 2; i += 2) {
-        if (i >= char_count * 2) printf("\n");
+    for (int i = 0; i < list_size * 2; i += 2) {
+        if (i >= list_size * 2) printf("\n");
         unsigned char symbol = read_buffer[i];
         unsigned char count = read_buffer[i + 1];
         frequency_table[symbol] = count;
@@ -154,7 +163,8 @@ void generate_huffman_code(Code* code_table, uint32_t code, uint8_t depth, Node*
     if (node == NULL) return;
     if (node->l_node == NULL && node->r_node == NULL) {
         code_table[node->symbol].code = code; 
-        code_table[node->symbol].length = depth; 
+        // if tree has only one node, instead of zero, write 1 as depth
+        code_table[node->symbol].length = depth == 0 ? 1 : depth; 
         return;
     }
 
@@ -207,7 +217,9 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
         return 0;
     }
 
-    printf("\rProcessing: %lld/%lld bytes. -> %ld bytes.\n", processed, file_size, ftell(bit_writer->file));
+    long compressed_file_size = ftell(bit_writer->file);
+    double compression_rate = (double) (file_size - compressed_file_size) / file_size * 100;
+    printf("\rProcessing: %lld/%lld bytes. -> %ld bytes (%.2f%s)\n", processed, file_size, compressed_file_size, compression_rate, "%");
     return 1;
 }
 
@@ -224,8 +236,8 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
 *  returns: If failed (0), on success (1)
 */
 int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bits) {
-    unsigned char out_buffer[OUTPUT_BUFFER_SIZE];
-    size_t out_pos = 0;
+    unsigned char output_buffer[OUTPUT_BUFFER_SIZE];
+    size_t output_pos = 0;
     size_t file_size = get_file_size(bit_reader->file);
     size_t processed = ftell(bit_reader->file);
     Node* current = root;
@@ -235,20 +247,20 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
         if (bit == -1) {
             break;
         }
-        current = bit ? current->r_node : current->l_node;
         // Leaf Node:
         if (current->l_node == NULL && current->r_node == NULL) { 
-            out_buffer[out_pos++] = current->symbol;
+            output_buffer[output_pos++] = current->symbol;
             // Flush output_buffer
-            if (out_pos == OUTPUT_BUFFER_SIZE) {
-                size_t written_bytes = fwrite(out_buffer, 1, OUTPUT_BUFFER_SIZE, output_file);
+            if (output_pos == OUTPUT_BUFFER_SIZE) {
+                size_t written_bytes = fwrite(output_buffer, 1, OUTPUT_BUFFER_SIZE, output_file);
                 if (written_bytes < OUTPUT_BUFFER_SIZE) {
                     return 0;
                 }
-                out_pos = 0;
+                output_pos = 0;
             }
             current = root;
         }
+        current = bit ? current->r_node : current->l_node;
         size_t read_bytes = bit_reader->bits_read / 8;
         if (read_bytes % (100 * KB) == 0) {
             printf("\rProcessing: %lld/%lld bytes...", processed + read_bytes, file_size);
@@ -256,9 +268,9 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
     }
 
     // Flush the remaining data in writer to the file
-    if (out_pos > 0) {
-        size_t written_bytes = fwrite(out_buffer, 1, out_pos, output_file);
-        if (written_bytes < out_pos) {
+    if (output_pos > 0) {
+        size_t written_bytes = fwrite(output_buffer, 1, output_pos, output_file);
+        if (written_bytes < output_pos) {
             return 0;
         }
     }
