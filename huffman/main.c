@@ -170,6 +170,7 @@ int main(int argc, char* argv[]) {
 }
 
 int compress(FILE* input_file, FILE* output_file) {
+    // Initialize resource management system
     Resources resource = resources_init(5);
     if (resource.pointers == NULL) {
         return 0;
@@ -200,8 +201,8 @@ int compress(FILE* input_file, FILE* output_file) {
     // Create a table for the huffman encoded symbols
     Code* code_table = malloc(FREQUENCY_TABLE_SIZE * sizeof(Code));
     if (code_table == NULL || resources_add(&resource, code_table) == 0) {
-        resources_cleanup(&resource);
         free_tree(root);
+        resources_cleanup(&resource);
         return 0;
     }
     
@@ -209,24 +210,24 @@ int compress(FILE* input_file, FILE* output_file) {
 
     BitWriter* bit_writer = init_writer(output_file);
     if (bit_writer == NULL || resources_add(&resource, bit_writer) == 0) {
-        resources_cleanup(&resource);
         free_tree(root);
+        resources_cleanup(&resource);
         return 0;
     }
 
     // Write file header (Read the readme file for more information about the compressed file structure)
     int _result = write_file_header(output_file, frequency_table);
     if (_result == 0) {
-        resources_cleanup(&resource);
         free_tree(root);
+        resources_cleanup(&resource);
         return 0;
     }
 
     // Encode and compress file
     int result = encode(input_file, bit_writer, code_table);
     if (result == 0) {
-        resources_cleanup(&resource);
         free_tree(root);
+        resources_cleanup(&resource);
         return 0;
     }
 
@@ -234,45 +235,48 @@ int compress(FILE* input_file, FILE* output_file) {
     size_t total_bits = bit_writer->total_bits;
     size_t res = fwrite(&total_bits, sizeof(size_t), 1, output_file);
 
-    resources_cleanup(&resource);
     free_tree(root);
+    resources_cleanup(&resource);
     return res;
 }
 
 int decompress(FILE* input_file, FILE* output_file) {
+    // Initialize resource management system
+    Resources resource = resources_init(4);
+    if (resource.pointers == NULL) {
+        return 0;
+    }
+
     BitReader* bit_reader = init_reader(input_file);
-    if (bit_reader == NULL) {
+    if (bit_reader == NULL || resources_add(&resource, bit_reader) == 0) {
+        resources_cleanup(&resource);
         return 0;
     }
 
     size_t total_bits = 0;
     size_t* frequencty_table = read_file_header(input_file, &total_bits);
-    if (frequencty_table == NULL) {
-        free(bit_reader);
+    if (frequencty_table == NULL || resources_add(&resource, frequencty_table) == 0) {
+        resources_cleanup(&resource);
         return 0;
     }
 
     Heap* priority_queue = create_priority_queue(frequencty_table);
-    if (priority_queue == NULL) {
-        free(bit_reader);
-        free(frequencty_table);
+    if (priority_queue == NULL
+        || resources_add(&resource, priority_queue) == 0
+        || resources_add(&resource, priority_queue->nodes) == 0) {
+        resources_cleanup(&resource);
         return 0;
     }
     
     Node* root = build_tree(priority_queue);
     if (root == NULL) {
-        free(bit_reader);
-        free(frequencty_table);
-        free(priority_queue->nodes);
-        free(priority_queue);
+        resources_cleanup(&resource);
         return 0;
     }
 
     int result = decode(output_file, bit_reader, root, total_bits);
 
-    free(bit_reader);
-    free(frequencty_table);
-    free(priority_queue->nodes);
-    free(priority_queue);
+    free_tree(root);
+    resources_cleanup(&resource);
     return result;
 }
