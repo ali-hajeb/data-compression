@@ -3,7 +3,9 @@
 #include "include/bitio.h"
 #include "include/minheap.h"
 #include "include/huffman.h"
+#include "include/resources.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,11 +100,11 @@ int main(int argc, char* argv[]) {
             return EXIT_FAILURE;
         }
 
-        int status = compress(input_file, output_file);
+        int result = compress(input_file, output_file);
         fclose(input_file);
         fclose(output_file);
         printf("\n--->> Compression ");
-        if (status) {
+        if (result) {
             printf("completed!\n");
         } else {
             printf("failed!\n");
@@ -119,11 +121,11 @@ int main(int argc, char* argv[]) {
             char* filename = NULL;
             char* file_extention = NULL;
 
-            int status = extract_filename_format(input_file_path, &filename, &file_extention);
-            if (status == -1) {
+            int result = extract_filename_format(input_file_path, &filename, &file_extention);
+            if (result == -1) {
                 err("main", "Invalid input file path!\n");
                 return EXIT_FAILURE;
-            } else if (status == 2 && (strcasecmp(file_extention, "huf") == 0)) {
+            } else if (result == 2 && (strcasecmp(file_extention, "huf") == 0)) {
                 size_t output_file_size = strlen(input_file_path) - strlen(".huf") + 1;
                 output_file_path = malloc(output_file_size);
                 if (output_file_path == NULL) {
@@ -150,11 +152,11 @@ int main(int argc, char* argv[]) {
             return EXIT_FAILURE;
         }
 
-        int status = decompress(input_file, output_file);
+        int result = decompress(input_file, output_file);
         fclose(input_file);
         fclose(output_file);
         printf("\n--->> Decompression ");
-        if (status) {
+        if (result) {
             printf("completed!\n");
         } else {
             printf("failed!\n");
@@ -168,34 +170,37 @@ int main(int argc, char* argv[]) {
 }
 
 int compress(FILE* input_file, FILE* output_file) {
+    Resources resource = resources_init(5);
+    if (resource.pointers == NULL) {
+        return 0;
+    }
     // Generate frequency table
     size_t* frequency_table = count_run(input_file);
-    if (frequency_table == NULL) {
+    if (frequency_table == NULL || resources_add(&resource, frequency_table)) {
+        resources_cleanup(&resource);
         return 0;
     }
 
     // Create a min-heap structure for nodes
     Heap* priority_queue = create_priority_queue(frequency_table);
-    if (priority_queue == NULL) {
-        free(frequency_table);
+    if (priority_queue == NULL
+        || resources_add(&resource, priority_queue) 
+        || resources_add(&resource, priority_queue->nodes)) {
+        resources_cleanup(&resource);
         return 0;
     }
     
     // Create a binary huffman tree
     Node* root = build_tree(priority_queue);
     if (root == NULL) {
-        free(frequency_table);
-        free(priority_queue->nodes);
-        free(priority_queue);
+        resources_cleanup(&resource);
         return 0;
     }
 
     // Create a table for the huffman encoded symbols
     Code* code_table = malloc(FREQUENCY_TABLE_SIZE * sizeof(Code));
-    if (code_table == NULL) {
-        free(frequency_table);
-        free(priority_queue->nodes);
-        free(priority_queue);
+    if (code_table == NULL || resources_add(&resource, code_table)) {
+        resources_cleanup(&resource);
         free_tree(root);
         return 0;
     }
@@ -203,51 +208,35 @@ int compress(FILE* input_file, FILE* output_file) {
     generate_huffman_code(code_table, 0, 0, root);
 
     BitWriter* bit_writer = init_writer(output_file);
-    if (bit_writer == NULL) {
-        free(frequency_table);
-        free(priority_queue->nodes);
-        free(priority_queue);
-        free(code_table);
+    if (bit_writer == NULL || resources_add(&resource, bit_writer)) {
+        resources_cleanup(&resource);
         free_tree(root);
         return 0;
     }
 
     // Write file header (Read the readme file for more information about the compressed file structure)
-    int header_status = write_file_header(output_file, frequency_table);
-    if (header_status == 0) {
-        free(frequency_table);
-        free(priority_queue->nodes);
-        free(priority_queue);
-        free(code_table);
-        free(bit_writer);
+    int _result = write_file_header(output_file, frequency_table);
+    if (_result == 0) {
+        resources_cleanup(&resource);
         free_tree(root);
         return 0;
     }
 
     // Encode and compress file
-    int status = encode(input_file, bit_writer, code_table);
-    if (status == 0) {
-        free(frequency_table);
-        free(priority_queue->nodes);
-        free(priority_queue);
-        free(code_table);
-        free(bit_writer);
+    int result = encode(input_file, bit_writer, code_table);
+    if (result == 0) {
+        resources_cleanup(&resource);
         free_tree(root);
         return 0;
     }
 
     // Write the total bits
     size_t total_bits = bit_writer->total_bits;
-    printf("total: %zu\n", total_bits);
-    size_t written_bytes = fwrite(&total_bits, sizeof(size_t), 1, output_file);
+    size_t res = fwrite(&total_bits, sizeof(size_t), 1, output_file);
 
-    free(frequency_table);
-    free(priority_queue->nodes);
-    free(priority_queue);
-    free(code_table);
-    free(bit_writer);
+    resources_cleanup(&resource);
     free_tree(root);
-    return written_bytes;
+    return res;
 }
 
 int decompress(FILE* input_file, FILE* output_file) {
@@ -279,11 +268,11 @@ int decompress(FILE* input_file, FILE* output_file) {
         return 0;
     }
 
-    int status = decode(output_file, bit_reader, root, total_bits);
+    int result = decode(output_file, bit_reader, root, total_bits);
 
     free(bit_reader);
     free(frequencty_table);
     free(priority_queue->nodes);
     free(priority_queue);
-    return status;
+    return result;
 }
