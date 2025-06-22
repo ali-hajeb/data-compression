@@ -5,3 +5,4 @@ In this repository, I try to implement some of the common algorithms using c lan
 ## Algorithms
 - [Run-Length Encoding (RLE)](rle/README.md)
 - [The Lempel-Ziv Algorithm (LZ77)](lz77/README.md)
+- [Huffman Coding](huffman/README.md)
