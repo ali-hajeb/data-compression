@@ -7,8 +7,8 @@
 #include <unistd.h>
 
 #define MAX_PATH 256
-#define TEST_FILES_DIR "../test/test_files"
-#define TEST_RESULTS_DIR "../test/test_results"
+#define TEST_FILES_DIR "./test/test_files"
+#define TEST_RESULTS_DIR "./test/test_results"
 
 // Function to create a directory if it doesn't exist
 int create_directory(const char *path) {
@@ -59,7 +59,7 @@ int compare_files(const char *file1, const char *file2) {
 
 int main() {
     // Compile the main program
-    if (run_command("gcc ../src/*.c ../main.c -o huffman -Wall -g") != 0) {
+    if (run_command("make all") != 0) {
         fprintf(stderr, "Compilation failed\n");
         return 1;
     }
@@ -107,7 +107,7 @@ int main() {
 
         // Run compression
         char cmd[MAX_PATH * 2];
-        snprintf(cmd, sizeof(cmd), "./huffman -c %s -o %s", input_path, compressed_path);
+        snprintf(cmd, sizeof(cmd), "./bin/huffman -c %s -o %s", input_path, compressed_path);
         printf("[TEST %d-1]: Compressing %s\n", test_number, entry->d_name);
         if (run_command(cmd) != 0) {
             fprintf(stderr, "Compression failed for %s\n", entry->d_name);
@@ -116,7 +116,7 @@ int main() {
         }
 
         // Run decompression
-        snprintf(cmd, sizeof(cmd), "./huffman -d %s -o %s", compressed_path, decompressed_path);
+        snprintf(cmd, sizeof(cmd), "./bin/huffman -d %s -o %s", compressed_path, decompressed_path);
         printf("[TEST %d-2]: Decompressing %s.huf\n", test_number, entry->d_name);
         if (run_command(cmd) != 0) {
             fprintf(stderr, "Decompression failed for %s\n", entry->d_name);
