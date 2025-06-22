@@ -176,7 +176,7 @@ int compress(FILE* input_file, FILE* output_file) {
     }
     // Generate frequency table
     size_t* frequency_table = count_run(input_file);
-    if (frequency_table == NULL || resources_add(&resource, frequency_table)) {
+    if (frequency_table == NULL || resources_add(&resource, frequency_table) == 0) {
         resources_cleanup(&resource);
         return 0;
     }
@@ -184,8 +184,8 @@ int compress(FILE* input_file, FILE* output_file) {
     // Create a min-heap structure for nodes
     Heap* priority_queue = create_priority_queue(frequency_table);
     if (priority_queue == NULL
-        || resources_add(&resource, priority_queue) 
-        || resources_add(&resource, priority_queue->nodes)) {
+        || resources_add(&resource, priority_queue) == 0 
+        || resources_add(&resource, priority_queue->nodes) == 0) {
         resources_cleanup(&resource);
         return 0;
     }
@@ -199,7 +199,7 @@ int compress(FILE* input_file, FILE* output_file) {
 
     // Create a table for the huffman encoded symbols
     Code* code_table = malloc(FREQUENCY_TABLE_SIZE * sizeof(Code));
-    if (code_table == NULL || resources_add(&resource, code_table)) {
+    if (code_table == NULL || resources_add(&resource, code_table) == 0) {
         resources_cleanup(&resource);
         free_tree(root);
         return 0;
@@ -208,7 +208,7 @@ int compress(FILE* input_file, FILE* output_file) {
     generate_huffman_code(code_table, 0, 0, root);
 
     BitWriter* bit_writer = init_writer(output_file);
-    if (bit_writer == NULL || resources_add(&resource, bit_writer)) {
+    if (bit_writer == NULL || resources_add(&resource, bit_writer) == 0) {
         resources_cleanup(&resource);
         free_tree(root);
         return 0;
