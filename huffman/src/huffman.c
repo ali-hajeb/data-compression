@@ -63,7 +63,6 @@ int write_file_header(FILE* output_file, size_t* frequency_table) {
     list_size--; // to avoid using extra byte for the value 256.
     if (fwrite(&list_size, sizeof(unsigned char), 1, output_file) < 1) return 0;
     list_size++;
-    printf("%zu\n", list_size);
 
     HeaderFrequencyTable* header_frequency_table = malloc(list_size * sizeof(HeaderFrequencyTable));
     if (header_frequency_table == NULL) {
@@ -108,15 +107,14 @@ size_t* read_file_header(FILE* input_file, size_t* bit_count) {
     // set every value to zero, in order to start counting occurance
     memset(frequency_table, 0, FREQUENCY_TABLE_SIZE * sizeof(size_t)); 
 
-    size_t list_size = 0;
+    short list_size = 0;
     fseek(input_file, 0, SEEK_SET);
     size_t read_bytes = fread(&list_size, 1, 1, input_file);
     if (read_bytes <= 0) {
-        fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted! %zu\n", list_size);
+        fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
         return NULL;
     }
     list_size++; // increase list_size by 1, because it was decreased by 1 when it was saved
-    printf("%zu\n", list_size);
 
     unsigned char* read_buffer = malloc(list_size * sizeof(unsigned char) * 2);
     if (read_buffer == NULL) {
@@ -130,7 +128,7 @@ size_t* read_file_header(FILE* input_file, size_t* bit_count) {
     }
 
     // Read file's frequency table and import it
-    for (int i = 0; i < list_size * 2; i += 2) {
+    for (short i = 0; i < list_size * 2; i += 2) {
         if (i >= list_size * 2) printf("\n");
         unsigned char symbol = read_buffer[i];
         unsigned char count = read_buffer[i + 1];
@@ -207,7 +205,7 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
         }
         processed += bytes_read;
         if (processed % (100 * KB) == 0) {
-            printf("\rProcessing: %lld/%lld bytes...", processed, file_size);
+            printf("\rProcessing: %zu/%zu bytes...", processed, file_size);
         }
     }
 
@@ -219,7 +217,7 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
 
     long compressed_file_size = ftell(bit_writer->file);
     double compression_rate = (double) (file_size - compressed_file_size) / file_size * 100;
-    printf("\rProcessing: %lld/%lld bytes. -> %ld bytes (%.2f%s)\n", processed, file_size, compressed_file_size, compression_rate, "%");
+    printf("\rProcessing: %zu/%zu bytes. -> %ld bytes (%.2f%s)\n", processed, file_size, compressed_file_size, compression_rate, "%");
     return 1;
 }
 
@@ -247,6 +245,7 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
         if (bit == -1) {
             break;
         }
+        current = bit ? current->r_node : current->l_node;
         // Leaf Node:
         if (current->l_node == NULL && current->r_node == NULL) { 
             output_buffer[output_pos++] = current->symbol;
@@ -260,10 +259,9 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
             }
             current = root;
         }
-        current = bit ? current->r_node : current->l_node;
         size_t read_bytes = bit_reader->bits_read / 8;
         if (read_bytes % (100 * KB) == 0) {
-            printf("\rProcessing: %lld/%lld bytes...", processed + read_bytes, file_size);
+            printf("\rProcessing: %ld/%ld bytes...", processed + read_bytes, file_size);
         }
     }
 
@@ -275,7 +273,7 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
         }
     }
     size_t read_bytes = bit_reader->bits_read / 8;
-    printf("\rProcessing: %lld/%lld bytes. -> %ld bytes.\n", processed + read_bytes, file_size, ftell(output_file));
+    printf("\rProcessing: %ld/%ld bytes. -> %ld bytes.\n", processed + read_bytes, file_size, ftell(output_file));
 
     return 1;
 }
