@@ -47,4 +47,19 @@ int extract_filename_format(const char *filepath, char **filename, char **filefo
 *  returns: file size
 */
 size_t get_file_size(FILE* file);
+
+
+/*
+* Function: swap
+* --------------
+*  Swaps the value of two variables.
+*
+*  p1: Pointer to the first value
+*  p2: Pointer to the second value
+*  value_size: Size of the value
+*
+*  returns: Void pointer to the second value.
+*           If fails, returns NULL
+*/
+void* swap(void* p1, void* p2, size_t value_size);
 #endif

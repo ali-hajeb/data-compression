@@ -1,3 +1,5 @@
+#ifndef RESOURCES_H
+#define RESOURCES_H
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -39,3 +41,4 @@ int resources_add(Resources* res, void* ptr);
 *  resource: Pointer to the Resources Object
 */
 void resources_cleanup(Resources* res);
+#endif
