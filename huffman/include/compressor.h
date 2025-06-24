@@ -2,68 +2,44 @@
 #define COMPRESSOR_H
 #include "minheap.h"
 
-#include <stddef.h>
+#include <stdio.h>
 
-typedef struct node {
-    unsigned char symbol;
-    size_t frequency;
-    struct node* r_node;
-    struct node* l_node;
-} Node;
-
-void heap_sorter(Heap* heap, size_t* parent_index, size_t* index) {
 
 /*
-* Function build_tree
-* -------------------
-*  Builds the binary tree of the min-heap
-*
-*  heap: Pointer to the min-heap
-*
-*  returns: A pointer to the root of the tree
-*/
-Node* build_tree(Heap* heap);
-
-/*
-* Function: get_list_size
-* -----------------------
-*  Returns the number of non-zero values. Also can obtain the maximum value.
-*
-*  list: Pointer to the list array.
-*  max_value: Pointer to the max_value variable. (Can be NULL).
-*
-*  returns: Count of non-zero values.
-*/
-size_t get_list_size(size_t* list, size_t* max_value);
-
-/*
-* Function combine_nodes
+* Function: fill_minheap
 * ----------------------
-*  Combines the nodes and returns a new node
+* Creates a new node for every non-zero value in frequency table
+* and inserts it to the min-heap
 *
-*  n1: First node
-*  n2: Second node
+* frequency_table: Pointer to the frequency table
+* priority_queue: Pointer to the min-heap object
 *
-*  returns: New node with 2 childeren
+* returns: Count of inserted nodes.
+*          If failed, returns (-1).
 */
-Node* combine_nodes(Node* n1, Node* n2);
+int fill_minheap(size_t* frequency_table, Heap* priority_queue, size_t max_count);
 
 /*
-* Function: print_tree
-* --------------------
-*  Prints the tree (Recursively) .
+* Function: compress
+* ------------------
+* Compresses the input file using huffman coding
 *
-*  root: Pointer to the root of the tree
-*  indent: Number of space indentation after each branch
+* input_file: Pointer to the input_file
+* output_file: Pointer to the output_file
+*
+* returns: If failed (0), On success (1)
 */
-void print_tree(Node* root, int indent); 
+int compress(FILE* input_file, FILE* output_file);
 
 /*
-* Function: free_tree
-* -------------------
-*  Frees the allocated memory for the tree (Recursively).
+* Function: decompress
+* ------------------
+* Decompresses the input file using huffman coding
 *
-*  root: Pointer to the root of the tree
+* input_file: Pointer to the input_file
+* output_file: Pointer to the output_file
+*
+* returns: If failed (0), On success (1)
 */
-void free_tree(Node* root);
+int decompress(FILE* input_file, FILE* output_file);
 #endif

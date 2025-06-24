@@ -1,35 +1,10 @@
 #include "../include/minheap.h"
 #include "../include/constants.h"
 
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/*
-* Function: get_list_size
-* -----------------------
-*  Returns the number of non-zero values. Also can obtain the maximum value.
-*
-*  list: Pointer to the list array.
-*  max_value: Pointer to the max_value variable. (Can be NULL).
-*
-*  returns: Count of non-zero values.
-*/
-size_t get_list_size(size_t* list, size_t* max_value) {
-    size_t list_size = 0;
-    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
-        if (list[i] != 0) {
-            list_size++;
-            if (list[i] > *max_value) {
-                *max_value = list[i];
-            }
-        }
-    }
-    *max_value /= 255;
-    *max_value += 1;
-    return list_size;
-}
 
 /*
 * Function: create_priority_queue
@@ -43,7 +18,7 @@ size_t get_list_size(size_t* list, size_t* max_value) {
 *  returns: A pointer to the min-heap structure. If failed, returns NULL
 */
 Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
-                            void (*sorter)(struct heap* heap, size_t* parent_index, size_t* index)) {
+                            int (*compare)(const void* a, const void* b)) {
 
     // Initialize the min-heap
     Heap* priority_queue = malloc(sizeof(Heap));
@@ -59,7 +34,7 @@ Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
         return NULL;
     }
 
-    priority_queue->sorter = sorter;
+    priority_queue->compare = compare;
     priority_queue->node_size = node_size;
     priority_queue->size = 0;
     priority_queue->max_size = initial_capacity;
@@ -85,31 +60,79 @@ ssize_t heap_insert(Heap* heap, void* node) {
     if(memcpy(&heap->nodes[(heap->size)++], node, heap->node_size) == NULL) {
         return -1;
     }
-    size_t node_index = sort_heap_node(heap, heap->size - 1);
+    size_t node_index = heapify_up(heap, heap->size - 1);
     return node_index;
 }
 
 /*
-* Function: sort_heap_node
-* ------------------------
-*  Finds the appropriate index for the node in the min-heap
+* Function: heapify_up
+* --------------------
+*  Puts the selected node at the appropiate index
 *
-*  heap: Pointer to the min-heap
-*  index: index of the node to be sorted
-*  sorter: Pointer to the function that does the sorting
+*  heap: Pointer to the min-heap object
+*  index: Index of the selected node
 *
-*  returns: The index of the node.
+*  returns: New index of the selected node.
+*           If failed, returns (-1)
 */
-ssize_t sort_heap_node(Heap* heap, size_t index) {
-    if (index == 0) {
-        return 0;
+ssize_t heapify_up(Heap* heap, size_t index) {
+    while (index > 0) {
+        size_t parent_idx = (index - 1) / 2;
+        void* index_node = &heap->nodes[index];
+        void* parent_node = &heap->nodes[parent_idx];
+
+        if (heap->compare(index_node, parent_node) < 0) {
+            void* result = swap(index_node, parent_node, heap->node_size);
+            if (result == NULL) {
+                return -1;
+            }
+            index = parent_idx;
+        }
+        else {
+            break;
+        }
+    }
+    return index;
+}
+
+/*
+* Function: heapify_down
+* ----------------------
+*  Sorts the min-heap from top to down
+*
+*  heap: Pointer to the min-heap object
+*  index: Index of the starting node
+*
+*  returns: New index of the start node.
+*           If failed, returns (-1)
+*/
+ssize_t heapify_down(Heap* heap, size_t index) {
+    size_t left_child = index * 2 + 1;
+    size_t right_child = index * 2 + 2;
+    size_t min_index = index;
+
+    void* left_child_node = &heap->nodes[left_child];
+    void* right_child_node = &heap->nodes[right_child];
+    void* index_node = &heap->nodes[min_index];
+    void* min_index_node = index_node;
+
+    if (left_child < heap->size && heap->compare(left_child_node, min_index_node)) {
+        min_index = left_child;
+        min_index_node = left_child_node;
+    }
+    if (right_child < heap->size && heap->compare(right_child_node, min_index_node)) {
+        min_index = right_child;
+        min_index_node = right_child_node;
     }
 
-    size_t parent_index = (index - 1) / 2;
-    size_t new_index = index;
-
-    heap->sorter(heap, &parent_index, &index);
-    return new_index;
+    if (min_index != index) {
+        void* result = swap(index_node, min_index_node, heap->node_size);
+        if (result == NULL) {
+            return -1;
+        }
+        min_index = heapify_down(heap, min_index);
+    }
+    return min_index;
 }
 
 /*
@@ -134,8 +157,8 @@ void* heap_extract(Heap* heap) {
     }
 
     // The last node will be the first after extraction
-    if (memcpy(node, &heap->nodes[0], heap->node_size) 
-        || memcpy(&heap->nodes[0], &heap->nodes[heap->size], heap->node_size)) {
+    if (memcpy(node, &heap->nodes[0], heap->node_size) == NULL
+        || memcpy(&heap->nodes[0], &heap->nodes[heap->size], heap->node_size) == NULL) {
         fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Unable to extract the node from the heap!\n");
         return NULL;
     }
@@ -144,106 +167,9 @@ void* heap_extract(Heap* heap) {
     heap->size--;
 
     // Re-sort heap
-    sort_heap(heap, 0);
+    heapify_down(heap, 0);
 
     return node;
-}
-
-/*
-* Function: sort_heap
-* -------------------
-*  Sorts the min-heap based on the node values
-*
-*  heap: Pointer to the min-heap
-*  index: Index of the node to start the sort
-*
-*  returns: Index of the node
-*/
-size_t sort_heap(Heap* heap, size_t index) {
-    size_t left_child = index * 2 + 1;
-    size_t right_child = index * 2 + 2;
-    size_t min_index = index;
-
-    if (left_child < heap->size && 
-        (heap->nodes[left_child].frequency < heap->nodes[min_index].frequency 
-        || (heap->nodes[left_child].frequency == heap->nodes[min_index].frequency 
-            && heap->nodes[left_child].symbol < heap->nodes[min_index].symbol))) {
-        min_index = left_child;
-    }
-    if (right_child < heap->size &&
-        (heap->nodes[right_child].frequency < heap->nodes[min_index].frequency 
-        || (heap->nodes[right_child].frequency == heap->nodes[min_index].frequency 
-            && heap->nodes[right_child].symbol < heap->nodes[min_index].symbol))) {
-        min_index = right_child;
-    }
-
-    if (min_index != index) {
-        swap(&heap->nodes[index], &heap->nodes[min_index]);
-        min_index = sort_heap(heap, min_index);
-    }
-    return min_index;
-}
-
-/*
-* Function combine_nodes
-* ----------------------
-*  Combines the nodes and returns a new node
-*
-*  n1: First node
-*  n2: Second node
-*
-*  returns: New node with 2 childeren
-*/
-Node* combine_nodes(Node* n1, Node* n2) {
-    Node* new_node = malloc(sizeof(Node));
-    if (new_node == NULL) {
-        fprintf(stderr, "\n[ERROR]: combine_nodes() {} -> Unable to combine two nodes!\n");
-        return NULL;
-    }
-
-    new_node->symbol = 0xFF;
-    new_node->frequency = n1->frequency + n2->frequency;
-    new_node->l_node = n1;
-    new_node->r_node = n2;
-
-    return new_node;
-}
-
-/*
-* Function build_tree
-* -------------------
-*  Builds the binary tree of the min-heap
-*
-*  heap: Pointer to the min-heap
-*
-*  returns: A pointer to the root of the tree
-*/
-Node* build_tree(Heap* heap) {
-    while (heap->size >= 2) {
-        Node* n1 = heap_extract(heap);
-        Node* n2 = heap_extract(heap);
-        if (n1 == NULL || n2 == NULL) {
-            return NULL;
-        }
-
-        Node* new_node = combine_nodes(n1, n2);
-        if (new_node == NULL) {
-            free(n1);
-            free(n2);
-            return NULL;
-        }
-
-        ssize_t index = heap_insert(heap, new_node);
-        if (index == -1) {
-            free(n1);
-            free(n2);
-            free(new_node);
-            return NULL;
-        }
-        free(new_node);
-    }
-
-    return heap_extract(heap);
 }
 
 /*
@@ -273,48 +199,19 @@ void* swap(void* p1, void* p2, size_t value_size) {
     free(temp);
     return p2;
 }
+
 /*
-* Function: print_tree
-* --------------------
-*  Prints the tree (Recursively) .
-*
-*  root: Pointer to the root of the tree
-*  indent: Number of space indentation after each branch
-*/
-void print_tree(Node* root, int indent) {
-    printf("%*s[%p (%c): (%zu)] ->\n", indent, " ", root, root->symbol, root->frequency);
-
-    if (root->r_node == NULL && root->l_node == NULL) {
-        return;
-    } 
-
-    indent += 5;
-    print_tree(root->r_node, indent);
-    print_tree(root->l_node, indent);
-}
-
-void print_heap(Heap* heap, const char* title) {
-    printf("\n===========| %s |===========\n", title);
-    for (size_t i = 0; i < heap->size; i++) {
-        printf("[%2X]: %c (%zu)\n", heap->nodes[i].symbol, heap->nodes[i].symbol, heap->nodes[i].frequency);
-    }
-    printf("============================\n");
-}
-/*
-* Function: free_tree
+* Function: free_heap
 * -------------------
-*  Frees the allocated memory for the tree (Recursively).
+*  Frees the min-heap from the memory
 *
-*  root: Pointer to the root of the tree
+*  heap: Pointer to the min-heap object
 */
-void free_tree(Node* root) {
-    if (root == NULL) {
-        return; // Base case: nothing to free
+void free_heap(Heap* heap) {
+    if (heap == NULL) {
+        return;
     }
-    // Recursively free left and right subtrees
-    free_tree(root->r_node);
-    free_tree(root->l_node);
-    // Free the current node
-    free(root);
-}
 
+    free(heap->nodes);
+    free(heap);
+}

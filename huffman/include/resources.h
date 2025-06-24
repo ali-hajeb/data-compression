@@ -1,6 +1,5 @@
 #ifndef RESOURCES_H
 #define RESOURCES_H
-#include <stddef.h>
 #include <stdlib.h>
 
 typedef struct {

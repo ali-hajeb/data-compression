@@ -6,7 +6,7 @@
 typedef struct heap {
     void* nodes;
     size_t node_size;
-    void (*sorter)(struct heap* heap, size_t* parent_index, size_t* index); 
+    int (*compare)(const void* a, const void* b); 
     size_t max_size;
     size_t size;
 } Heap;
@@ -24,7 +24,7 @@ typedef struct heap {
 *  returns: A pointer to the min-heap structure. If failed, returns NULL
 */
 Heap* create_priority_queue(size_t initial_capacity, size_t node_size, 
-                            void (*sorter)(struct heap* heap, size_t* parent_index, size_t* index));
+                            int (*compare)(const void* a, const void* b));
 
 /*
 * Function: heap_insert
@@ -39,28 +39,30 @@ Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
 ssize_t heap_insert(Heap* heap, void* node);
 
 /*
-* Function: sort_heap
-* -------------------
-*  Sorts the min-heap based on the node values
+* Function: heapify_up
+* --------------------
+*  Puts the selected node at the appropiate  index
 *
-*  heap: Pointer to the min-heap
-*  index: Index of the node to start the sort
+*  heap: Pointer to the min-heap object
+*  index: Index of the selected node
 *
-*  returns: Index of the node
+*  returns: New index of the selected node.
+*           if failed, returns (-1)
 */
-size_t sort_heap(Heap* heap, size_t index); 
+ssize_t heapify_up(Heap* heap, size_t index);
 
 /*
-* Function: sort_heap_node
-* ------------------------
-*  Finds the appropriate index for the node in the min-heap
+* Function: heapify_down
+* ----------------------
+*  Sorts the min-heap from top to down
 *
-*  heap: Pointer to the min-heap
-*  index: index of the node to be sorted
+*  heap: Pointer to the min-heap object
+*  index: Index of the starting node
 *
-*  returns: The index of the node.
+*  returns: New index of the start node.
+*           If failed, returns (-1)
 */
-ssize_t sort_heap_node(Heap* heap, size_t index);
+ssize_t heapify_down(Heap* heap, size_t index);
 
 /*
 * Function heap_extract
@@ -87,5 +89,12 @@ void* heap_extract(Heap* heap);
 */
 void* swap(void* p1, void* p2, size_t value_size);
 
-void print_heap(Heap* heap, const char* title);
+/*
+* Function: free_heap
+* -------------------
+*  Frees the min-heap from the memory
+*
+*  heap: Pointer to the min-heap object
+*/
+void free_heap(Heap* heap);
 #endif

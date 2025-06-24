@@ -3,9 +3,35 @@
 #include "../include/bitio.h"
 #include "../include/huffman.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/*
+* Function: get_list_size
+* -----------------------
+*  Returns the number of non-zero values. Also can obtain the maximum value.
+*
+*  list: Pointer to the list array.
+*  max_value: Pointer to the max_value variable. (Can be NULL).
+*
+*  returns: Count of non-zero values.
+*/
+size_t get_list_size(size_t* list, size_t* max_value) {
+    size_t list_size = 0;
+    for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
+        if (list[i] != 0) {
+            list_size++;
+            if (list[i] > *max_value) {
+                *max_value = list[i];
+            }
+        }
+    }
+    *max_value /= 255;
+    *max_value += 1;
+    return list_size;
+}
 
 /*
 * Function: count_run
@@ -41,6 +67,126 @@ size_t* count_run(FILE* file) {
 
     free(read_buffer);
     return frequency_table;
+}
+
+/*
+* Function compare_nodes
+* ----------------------
+*  Compares the frequency of two nodes
+*
+*  a: Pointer to Node 1
+*  b: Pointer to Node 2
+*
+*  returns: The difference of the nodes priority
+*/
+int compare_nodes(const void* a, const void* b) {
+    const Node* node_a = (Node*) a;
+    const Node* node_b = (Node*) b;
+
+    if (node_a->frequency == node_b->frequency) {
+        return node_a->symbol - node_b->symbol;
+    } else {
+        return node_a->frequency - node_b->frequency;
+    }
+}
+/*
+* Function combine_nodes
+* ----------------------
+*  Combines the nodes and returns a new node.
+*
+*  n1: First node.
+*  n2: Second node.
+*
+*  returns: New node with 2 childeren
+*/
+Node* combine_nodes(Node* n1, Node* n2) {
+    Node* new_node = malloc(sizeof(Node));
+    if (new_node == NULL) {
+        fprintf(stderr, "\n[ERROR]: combine_nodes() {} -> Unable to combine two nodes!\n");
+        return NULL;
+    }
+
+    new_node->symbol = 0xFF;
+    new_node->frequency = n1->frequency + n2->frequency;
+    new_node->l_node = n1;
+    new_node->r_node = n2;
+
+    return new_node;
+}
+
+/*
+* Function build_tree.
+* -------------------
+*  Builds the binary tree of the min-heap.
+*
+*  heap: Pointer to the min-heap.
+*
+*  returns: A pointer to the root of the tree.
+*/
+Node* build_tree(Heap* heap) {
+    while (heap->size >= 2) {
+        Node* n1 = heap_extract(heap);
+        Node* n2 = heap_extract(heap);
+        if (n1 == NULL || n2 == NULL) {
+            return NULL;
+        }
+
+        Node* new_node = combine_nodes(n1, n2);
+        if (new_node == NULL) {
+            free(n1);
+            free(n2);
+            return NULL;
+        }
+
+        ssize_t index = heap_insert(heap, new_node);
+        if (index == -1) {
+            free(n1);
+            free(n2);
+            free(new_node);
+            return NULL;
+        }
+        free(new_node);
+    }
+
+    return heap_extract(heap);
+}
+
+/*
+* Function: print_tree
+* --------------------
+*  Prints the tree (Recursively).
+*
+*  root: Pointer to the root of the tree
+*  indent: Number of space indentation after each branch
+*/
+void print_tree(Node* root, int indent) {
+    printf("%*s[%p (%c): (%zu)] ->\n", indent, " ", root, root->symbol, root->frequency);
+
+    if (root->r_node == NULL && root->l_node == NULL) {
+        return;
+    } 
+
+    indent += 5;
+    print_tree(root->r_node, indent);
+    print_tree(root->l_node, indent);
+}
+
+/*
+* Function: free_tree
+* -------------------
+*  Frees the allocated memory for the tree (Recursively).
+*
+*  root: Pointer to the root of the tree
+*/
+void free_tree(Node* root) {
+    if (root == NULL) {
+        return; // Base case: nothing to free
+    }
+    // Recursively free left and right subtrees
+    free_tree(root->r_node);
+    free_tree(root->l_node);
+    // Free the current node
+    free(root);
 }
 
 /*
@@ -98,7 +244,7 @@ int write_file_header(FILE* output_file, size_t* frequency_table) {
 *
 *  returns: Frequency table
 */
-size_t* read_file_header(FILE* input_file, size_t* bit_count) {
+size_t* read_file_header(FILE* input_file, size_t* list_size, size_t* bit_count) {
     size_t* frequency_table = malloc(FREQUENCY_TABLE_SIZE * sizeof(size_t));
     if (frequency_table == NULL) {
         fprintf(stderr, "\n[ERROR]: count_run() {} -> Unable to allocate memory for frequency table!\n");
@@ -107,29 +253,29 @@ size_t* read_file_header(FILE* input_file, size_t* bit_count) {
     // set every value to zero, in order to start counting occurance
     memset(frequency_table, 0, FREQUENCY_TABLE_SIZE * sizeof(size_t)); 
 
-    short list_size = 0;
     fseek(input_file, 0, SEEK_SET);
     size_t read_bytes = fread(&list_size, 1, 1, input_file);
     if (read_bytes <= 0) {
         fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
         return NULL;
     }
-    list_size++; // increase list_size by 1, because it was decreased by 1 when it was saved
+    (*list_size)++; // increase list_size by 1, because it was decreased by 1 when it was saved
 
-    unsigned char* read_buffer = malloc(list_size * sizeof(unsigned char) * 2);
+    unsigned char* read_buffer = malloc(*list_size * sizeof(unsigned char) * 2);
     if (read_buffer == NULL) {
         fprintf(stderr, "\n[ERROR]: decompress() {} -> Unable to allocate memory for buffer!\n");
         return NULL;
     }
-    read_bytes = fread(read_buffer, sizeof(unsigned char), list_size * 2, input_file);
-    if (read_bytes <= 0) {
+
+    size_t header_frequency_table_size = *list_size * 2;
+    read_bytes = fread(read_buffer, sizeof(unsigned char), header_frequency_table_size, input_file);
+    if (read_bytes <= header_frequency_table_size) {
         fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
         return NULL;
     }
 
     // Read file's frequency table and import it
-    for (short i = 0; i < list_size * 2; i += 2) {
-        if (i >= list_size * 2) printf("\n");
+    for (size_t i = 0; i < header_frequency_table_size; i += 2) {
         unsigned char symbol = read_buffer[i];
         unsigned char count = read_buffer[i + 1];
         frequency_table[symbol] = count;
@@ -141,7 +287,10 @@ size_t* read_file_header(FILE* input_file, size_t* bit_count) {
     size_t header_end_pos = ftell(input_file);
     long total_bits_pos = sizeof(size_t);
     fseek(input_file, -1 * total_bits_pos, SEEK_END);
-    fread(bit_count, sizeof(size_t), 1, input_file);
+    if (fread(bit_count, sizeof(size_t), 1, input_file) < 1) {
+        fprintf(stderr, "\n[ERROR]: decompress() {} -> Unable to read total bit_count from file header!\n");
+        return NULL;
+    }
     fseek(input_file, header_end_pos, SEEK_SET);
 
     return frequency_table;

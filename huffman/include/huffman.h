@@ -6,6 +6,13 @@
 #include <stdint.h>
 #include <stdio.h>
 
+typedef struct node {
+    unsigned char symbol;
+    size_t frequency;
+    struct node* r_node;
+    struct node* l_node;
+} Node;
+
 typedef struct {
     uint32_t code;
     uint8_t length;
@@ -15,6 +22,18 @@ typedef struct {
     unsigned char symbol;
     unsigned char frequency;
 } HeaderFrequencyTable;
+
+/*
+* Function: get_list_size
+* -----------------------
+*  Returns the number of non-zero values. Also can obtain the maximum value.
+*
+*  list: Pointer to the list array.
+*  max_value: Pointer to the max_value variable. (Can be NULL).
+*
+*  returns: Count of non-zero values.
+*/
+size_t get_list_size(size_t* list, size_t* max_value);
 
 /*
 * Function: count_run
@@ -28,6 +47,60 @@ typedef struct {
 size_t* count_run(FILE* file);
 
 /*
+* Function compare_nodes
+* ----------------------
+*  Compares the frequency of two nodes
+*
+*  a: Pointer to Node 1
+*  b: Pointer to Node 2
+*
+*  returns: The difference of the nodes priority
+*/
+int compare_nodes(const void* a, const void* b);
+
+/*
+* Function combine_nodes
+* ----------------------
+*  Combines the nodes and returns a new node
+*
+*  n1: First node
+*  n2: Second node
+*
+*  returns: New node with 2 childeren
+*/
+Node* combine_nodes(Node* n1, Node* n2);
+
+/*
+* Function build_tree
+* -------------------
+*  Builds the binary tree of the min-heap
+*
+*  heap: Pointer to the min-heap
+*
+*  returns: A pointer to the root of the tree
+*/
+Node* build_tree(Heap* heap);
+
+/*
+* Function: free_tree
+* -------------------
+*  Frees the allocated memory for the tree (Recursively).
+*
+*  root: Pointer to the root of the tree
+*/
+void free_tree(Node* root);
+
+/*
+* Function: print_tree
+* --------------------
+*  Prints the tree (Recursively) .
+*
+*  root: Pointer to the root of the tree
+*  indent: Number of space indentation after each branch
+*/
+
+void print_tree(Node* root, int indent); 
+/*
 * Function: write_file_header
 * ---------------------------
 *  Writes header information to the output file
@@ -37,6 +110,7 @@ size_t* count_run(FILE* file);
 *
 *  returns: If failed (0), on success (1)
 */
+
 int write_file_header(FILE* output_file, size_t* frequency_table);
 
 /*
@@ -45,11 +119,12 @@ int write_file_header(FILE* output_file, size_t* frequency_table);
 *  Reads the header information of compressed file.
 *
 *  input_file: Pointer to the compressed file
+*  list_size: Pointer to a variable to store frequency table size
 *  bit_count: Pointer to the variable storing total bit count
 *
 *  returns: Frequency table
 */
-size_t* read_file_header(FILE* input_file, size_t* bit_count);
+size_t* read_file_header(FILE* input_file, size_t* list_size, size_t* bit_count);
 
 /*
 * Function: generate_huffman_code

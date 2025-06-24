@@ -142,30 +142,3 @@ size_t get_file_size(FILE* file) {
     return end;
 }
 
-/*
-* Function: swap
-* --------------
-*  Swaps the value of two variables.
-*
-*  p1: Pointer to the first value
-*  p2: Pointer to the second value
-*  value_size: Size of the value
-*
-*  returns: Void pointer to the second value.
-*           If fails, returns NULL
-*/
-void* swap(void* p1, void* p2, size_t value_size) {
-    void* temp = malloc(value_size);
-    if (temp == NULL) {
-        return NULL;
-    }
-    if (memcpy(temp, p1, value_size) == NULL
-        || memcpy(p1, p2, value_size) == NULL
-        || memcpy(p2, temp, value_size) == NULL) {
-        free(temp);
-        return NULL;
-    }
-
-    free(temp);
-    return p2;
-}
