@@ -42,4 +42,5 @@ int compress(FILE* input_file, FILE* output_file);
 * returns: If failed (0), On success (1)
 */
 int decompress(FILE* input_file, FILE* output_file);
+void print_heap(Heap* heap, const char* title);
 #endif

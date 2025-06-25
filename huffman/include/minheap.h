@@ -4,7 +4,7 @@
 
 
 typedef struct heap {
-    void* nodes;
+    void** nodes;
     size_t node_size;
     int (*compare)(const void* a, const void* b); 
     size_t max_size;
@@ -82,12 +82,11 @@ void* heap_extract(Heap* heap);
 *
 *  p1: Pointer to the first value
 *  p2: Pointer to the second value
-*  value_size: Size of the value
 *
 *  returns: Void pointer to the second value.
 *           If fails, returns NULL
 */
-void* swap(void* p1, void* p2, size_t value_size);
+void* swap(void** p1, void** p2);
 
 /*
 * Function: free_heap

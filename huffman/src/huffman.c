@@ -3,7 +3,6 @@
 #include "../include/bitio.h"
 #include "../include/huffman.h"
 
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +22,7 @@ size_t get_list_size(size_t* list, size_t* max_value) {
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (list[i] != 0) {
             list_size++;
+            // printf("%x: %zu\n", (unsigned char) i, list[i]);
             if (list[i] > *max_value) {
                 *max_value = list[i];
             }
@@ -110,6 +110,7 @@ Node* combine_nodes(Node* n1, Node* n2) {
     new_node->frequency = n1->frequency + n2->frequency;
     new_node->l_node = n1;
     new_node->r_node = n2;
+    // printf("%x: %zu, %x: %zu\n", n1->symbol , n1->frequency, n2->symbol , n2->frequency);
 
     return new_node;
 }

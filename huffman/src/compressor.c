@@ -28,13 +28,15 @@ int fill_minheap(size_t* frequency_table, Heap* priority_queue, size_t max_count
 
             // Create a new node
             Node node = { .symbol = (unsigned char) i, .frequency = frequency, .l_node = NULL, .r_node = NULL };
+            printf("F> %x: %zu\n", node.symbol, node.frequency);
 
             // Insert the new node to heap node list
             ssize_t node_index = heap_insert(priority_queue, &node);
             if (node_index == -1) {
-                fprintf(stderr, "\n[ERROR]: create_priority_queue() {} -> Heap insert failed!\n");
+                fprintf(stderr, "\n[ERROR]: fill_minheap() {} -> Heap insert failed!\n");
                 return -1;
             }
+            printf("2F> [%zu] %x: %zu\n", node_index, ((Node*) priority_queue->nodes)[node_index].symbol, ((Node*) priority_queue->nodes)[node_index].frequency);
         }
     }
     return priority_queue->size;
@@ -79,6 +81,8 @@ int compress(FILE* input_file, FILE* output_file) {
         resources_cleanup(&resource);
         return 0;
     }
+
+    // print_heap(priority_queue, "heap");
     
     // Create a binary huffman tree
     Node* root = build_tree(priority_queue);

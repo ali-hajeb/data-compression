@@ -1,5 +1,5 @@
-#include "../include/minheap.h"
 #include "../include/constants.h"
+#include "../include/minheap.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@ Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
         return NULL;
     }
 
-    priority_queue->nodes = malloc(initial_capacity * node_size);
+    priority_queue->nodes = malloc(initial_capacity);
     if (priority_queue->nodes == NULL) {
         fprintf(stderr, "\n[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue nodes!\n");
         free(priority_queue);
@@ -57,7 +57,7 @@ ssize_t heap_insert(Heap* heap, void* node) {
         return -1;
     }
 
-    if(memcpy(&heap->nodes[(heap->size)++], node, heap->node_size) == NULL) {
+    if(memcpy(heap->nodes[(heap->size)++], node, heap->node_size) == NULL) {
         return -1;
     }
     size_t node_index = heapify_up(heap, heap->size - 1);
@@ -78,11 +78,11 @@ ssize_t heap_insert(Heap* heap, void* node) {
 ssize_t heapify_up(Heap* heap, size_t index) {
     while (index > 0) {
         size_t parent_idx = (index - 1) / 2;
-        void* index_node = &heap->nodes[index];
-        void* parent_node = &heap->nodes[parent_idx];
+        void* index_node = heap->nodes[index];
+        void* parent_node = heap->nodes[parent_idx];
 
         if (heap->compare(index_node, parent_node) < 0) {
-            void* result = swap(index_node, parent_node, heap->node_size);
+            void* result = swap(index_node, parent_node);
             if (result == NULL) {
                 return -1;
             }
@@ -111,9 +111,9 @@ ssize_t heapify_down(Heap* heap, size_t index) {
     size_t right_child = index * 2 + 2;
     size_t min_index = index;
 
-    void* left_child_node = &heap->nodes[left_child];
-    void* right_child_node = &heap->nodes[right_child];
-    void* index_node = &heap->nodes[min_index];
+    void* left_child_node = heap->nodes[left_child];
+    void* right_child_node = heap->nodes[right_child];
+    void* index_node = heap->nodes[min_index];
     void* min_index_node = index_node;
 
     if (left_child < heap->size && heap->compare(left_child_node, min_index_node)) {
@@ -126,7 +126,7 @@ ssize_t heapify_down(Heap* heap, size_t index) {
     }
 
     if (min_index != index) {
-        void* result = swap(index_node, min_index_node, heap->node_size);
+        void* result = swap(index_node, min_index_node);
         if (result == NULL) {
             return -1;
         }
@@ -157,8 +157,8 @@ void* heap_extract(Heap* heap) {
     }
 
     // The last node will be the first after extraction
-    if (memcpy(node, &heap->nodes[0], heap->node_size) == NULL
-        || memcpy(&heap->nodes[0], &heap->nodes[heap->size], heap->node_size) == NULL) {
+    if (memcpy(node, heap->nodes[0], heap->node_size) == NULL
+        || memcpy(heap->nodes[0], heap->nodes[heap->size], heap->node_size) == NULL) {
         fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Unable to extract the node from the heap!\n");
         return NULL;
     }
@@ -179,24 +179,14 @@ void* heap_extract(Heap* heap) {
 *
 *  p1: Pointer to the first value
 *  p2: Pointer to the second value
-*  value_size: Size of the value
 *
 *  returns: Void pointer to the second value.
 *           If fails, returns NULL
 */
-void* swap(void* p1, void* p2, size_t value_size) {
-    void* temp = malloc(value_size);
-    if (temp == NULL) {
-        return NULL;
-    }
-    if (memcpy(temp, p1, value_size) == NULL
-        || memcpy(p1, p2, value_size) == NULL
-        || memcpy(p2, temp, value_size) == NULL) {
-        free(temp);
-        return NULL;
-    }
-
-    free(temp);
+void* swap(void** p1, void** p2) {
+    void* temp = p1;
+    *p1 = *p2;
+    *p2 = temp;
     return p2;
 }
 
