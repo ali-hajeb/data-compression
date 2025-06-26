@@ -1,4 +1,5 @@
 #include "../include/constants.h"
+#include "../include/huffman.h"
 #include "../include/minheap.h"
 
 #include <stdio.h>
@@ -12,13 +13,11 @@
 *  creates a min-heap structure containing a list of nodes
 *
 *  initial_capacity: Initial number of nodes
-*  node_size: Size of node structure
-*  sorter: Pointer to the function that does the sorting
+*  compare: Pointer to the function that compares nodes priority
 *
 *  returns: A pointer to the min-heap structure. If failed, returns NULL
 */
-Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
-                            int (*compare)(const void* a, const void* b)) {
+Heap* create_priority_queue(size_t initial_capacity, int (*compare)(const void* a, const void* b)) {
 
     // Initialize the min-heap
     Heap* priority_queue = malloc(sizeof(Heap));
@@ -27,7 +26,7 @@ Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
         return NULL;
     }
 
-    priority_queue->nodes = malloc(initial_capacity);
+    priority_queue->nodes = malloc(initial_capacity * sizeof(void*));
     if (priority_queue->nodes == NULL) {
         fprintf(stderr, "\n[ERROR]: create_priority_queue() {} -> Unable to allocate memory for priority_queue nodes!\n");
         free(priority_queue);
@@ -35,7 +34,6 @@ Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
     }
 
     priority_queue->compare = compare;
-    priority_queue->node_size = node_size;
     priority_queue->size = 0;
     priority_queue->max_size = initial_capacity;
 
@@ -53,14 +51,16 @@ Heap* create_priority_queue(size_t initial_capacity, size_t node_size,
 *  returns: The index of the node in the heap. If failed, returns -1.
 */
 ssize_t heap_insert(Heap* heap, void* node) {
-    if (heap->size >= heap->max_size) {
+    if (heap == NULL || node == NULL || heap->size >= heap->max_size) {
         return -1;
     }
 
-    if(memcpy(heap->nodes[(heap->size)++], node, heap->node_size) == NULL) {
-        return -1;
-    }
-    size_t node_index = heapify_up(heap, heap->size - 1);
+    // printf("****\n");
+    heap->nodes[heap->size++] = node;
+    // for (size_t i = 0; i < heap->size; i++) {
+    //     printf("\t[%zu] %2X: %zu\n", i, ((Node*) heap->nodes[i])->symbol, ((Node*) heap->nodes[i])->frequency);
+    // }
+    ssize_t node_index = heapify_up(heap, heap->size - 1);
     return node_index;
 }
 
@@ -76,16 +76,14 @@ ssize_t heap_insert(Heap* heap, void* node) {
 *           If failed, returns (-1)
 */
 ssize_t heapify_up(Heap* heap, size_t index) {
+    if (heap == NULL || index >= heap->size) {
+        return -1;
+    }
     while (index > 0) {
         size_t parent_idx = (index - 1) / 2;
-        void* index_node = heap->nodes[index];
-        void* parent_node = heap->nodes[parent_idx];
 
-        if (heap->compare(index_node, parent_node) < 0) {
-            void* result = swap(index_node, parent_node);
-            if (result == NULL) {
-                return -1;
-            }
+        if (heap->compare(heap->nodes[index], heap->nodes[parent_idx]) < 0) {
+            swap(&heap->nodes[index], &heap->nodes[parent_idx]);
             index = parent_idx;
         }
         else {
@@ -107,29 +105,19 @@ ssize_t heapify_up(Heap* heap, size_t index) {
 *           If failed, returns (-1)
 */
 ssize_t heapify_down(Heap* heap, size_t index) {
-    size_t left_child = index * 2 + 1;
-    size_t right_child = index * 2 + 2;
+    size_t left_child_idx = index * 2 + 1;
+    size_t right_child_idx = index * 2 + 2;
     size_t min_index = index;
 
-    void* left_child_node = heap->nodes[left_child];
-    void* right_child_node = heap->nodes[right_child];
-    void* index_node = heap->nodes[min_index];
-    void* min_index_node = index_node;
-
-    if (left_child < heap->size && heap->compare(left_child_node, min_index_node)) {
-        min_index = left_child;
-        min_index_node = left_child_node;
+    if (left_child_idx < heap->size && heap->compare(heap->nodes[left_child_idx], heap->nodes[index]) < 0) {
+        min_index = left_child_idx;
     }
-    if (right_child < heap->size && heap->compare(right_child_node, min_index_node)) {
-        min_index = right_child;
-        min_index_node = right_child_node;
+    if (right_child_idx < heap->size && heap->compare(heap->nodes[right_child_idx], heap->nodes[min_index]) < 0) {
+        min_index = right_child_idx;
     }
 
     if (min_index != index) {
-        void* result = swap(index_node, min_index_node);
-        if (result == NULL) {
-            return -1;
-        }
+        swap(&heap->nodes[index], &heap->nodes[min_index]);
         min_index = heapify_down(heap, min_index);
     }
     return min_index;
@@ -145,30 +133,34 @@ ssize_t heapify_down(Heap* heap, size_t index) {
 *  returns: Pointer to the top node
 */
 void* heap_extract(Heap* heap) {
-    if (heap->size == 0) {
+    if (heap == NULL || heap->size == 0) {
         fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Heap is empty!\n");
         return NULL;
     }
-    
-    void* node = malloc(heap->node_size);
-    if (node == NULL) {
-        fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Unable to allocate memory for the node!\n");
-        return NULL;
-    }
 
-    // The last node will be the first after extraction
-    if (memcpy(node, heap->nodes[0], heap->node_size) == NULL
-        || memcpy(heap->nodes[0], heap->nodes[heap->size], heap->node_size) == NULL) {
-        fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Unable to extract the node from the heap!\n");
-        return NULL;
-    }
+    // void* node = malloc(sizeof(void*));
+    // if (node == NULL) {
+    //     fprintf(stderr, "\n[ERROR]: heap_extract() {} -> Unable to allocate memory for the node!\n");
+    //     return NULL;
+    // }
+    //
+    // node = &heap->nodes[0];
 
+    void* node = heap->nodes[0];
     // Reduce heap size
     heap->size--;
+    if (heap->size > 0) {
+        heap->nodes[0] = heap->nodes[heap->size];
+ 
+        // Clear last pointer
+        heap->nodes[heap->size] = NULL; 
 
-    // Re-sort heap
-    heapify_down(heap, 0);
-
+        // Re-sort the min-heap
+        heapify_down(heap, 0);
+    } else {
+        // Clear root if heap is empty
+        heap->nodes[0] = NULL; 
+    }
     return node;
 }
 
@@ -179,21 +171,18 @@ void* heap_extract(Heap* heap) {
 *
 *  p1: Pointer to the first value
 *  p2: Pointer to the second value
-*
-*  returns: Void pointer to the second value.
-*           If fails, returns NULL
 */
-void* swap(void** p1, void** p2) {
-    void* temp = p1;
+void swap(void** p1, void** p2) {
+    void* temp = *p1;
     *p1 = *p2;
     *p2 = temp;
-    return p2;
 }
 
 /*
 * Function: free_heap
 * -------------------
-*  Frees the min-heap from the memory
+*  Frees the min-heap from the memory.
+*  Note: This function does not free the nodes!
 *
 *  heap: Pointer to the min-heap object
 */

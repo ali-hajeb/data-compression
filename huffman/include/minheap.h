@@ -4,9 +4,9 @@
 
 
 typedef struct heap {
+    int (*compare)(const void* a, const void* b); 
     void** nodes;
     size_t node_size;
-    int (*compare)(const void* a, const void* b); 
     size_t max_size;
     size_t size;
 } Heap;
@@ -18,13 +18,11 @@ typedef struct heap {
 *  creates a min-heap structure containing a list of nodes
 *
 *  initial_capacity: Initial number of nodes
-*  node_size: Size of node structure
-*  sorter: Pointer to the function that does the sorting
+*  compare: Pointer to the function that compares nodes priority
 *
 *  returns: A pointer to the min-heap structure. If failed, returns NULL
 */
-Heap* create_priority_queue(size_t initial_capacity, size_t node_size, 
-                            int (*compare)(const void* a, const void* b));
+Heap* create_priority_queue(size_t initial_capacity, int (*compare)(const void* a, const void* b));
 
 /*
 * Function: heap_insert
@@ -82,11 +80,8 @@ void* heap_extract(Heap* heap);
 *
 *  p1: Pointer to the first value
 *  p2: Pointer to the second value
-*
-*  returns: Void pointer to the second value.
-*           If fails, returns NULL
 */
-void* swap(void** p1, void** p2);
+void swap(void** p1, void** p2);
 
 /*
 * Function: free_heap

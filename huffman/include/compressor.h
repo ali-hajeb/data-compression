@@ -15,9 +15,8 @@
 * priority_queue: Pointer to the min-heap object
 *
 * returns: Count of inserted nodes.
-*          If failed, returns (-1).
 */
-int fill_minheap(size_t* frequency_table, Heap* priority_queue, size_t max_count);
+ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue);
 
 /*
 * Function: compress

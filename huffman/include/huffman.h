@@ -8,14 +8,14 @@
 
 typedef struct node {
     unsigned char symbol;
-    size_t frequency;
     struct node* r_node;
     struct node* l_node;
+    size_t frequency;
 } Node;
 
 typedef struct {
-    uint32_t code;
     uint8_t length;
+    uint32_t code;
 } Code;
 
 typedef struct {
@@ -100,6 +100,19 @@ void free_tree(Node* root);
 */
 
 void print_tree(Node* root, int indent); 
+
+/*
+* Function: free_heap_nodes
+* -------------------------
+*  Iterates over the nodes in min-heap object
+*  and deletes them from the memory.
+*
+*  heap: Pointer to the min-heap object.
+*
+*  returns: Number of freed nodes.
+*/
+size_t free_heap_nodes(Heap* heap);
+
 /*
 * Function: write_file_header
 * ---------------------------

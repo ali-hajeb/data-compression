@@ -1,6 +1,5 @@
 #include "../include/resources.h"
 
-#include <stddef.h>
 #include <stdlib.h>
 
 /*

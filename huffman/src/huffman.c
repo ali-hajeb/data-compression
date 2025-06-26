@@ -13,7 +13,7 @@
 *  Returns the number of non-zero values. Also can obtain the maximum value.
 *
 *  list: Pointer to the list array.
-*  max_value: Pointer to the max_value variable. (Can be NULL).
+*  max_value: Pointer to the max_value variable.
 *
 *  returns: Count of non-zero values.
 */
@@ -22,7 +22,6 @@ size_t get_list_size(size_t* list, size_t* max_value) {
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (list[i] != 0) {
             list_size++;
-            // printf("%x: %zu\n", (unsigned char) i, list[i]);
             if (list[i] > *max_value) {
                 *max_value = list[i];
             }
@@ -110,8 +109,6 @@ Node* combine_nodes(Node* n1, Node* n2) {
     new_node->frequency = n1->frequency + n2->frequency;
     new_node->l_node = n1;
     new_node->r_node = n2;
-    // printf("%x: %zu, %x: %zu\n", n1->symbol , n1->frequency, n2->symbol , n2->frequency);
-
     return new_node;
 }
 
@@ -126,27 +123,22 @@ Node* combine_nodes(Node* n1, Node* n2) {
 */
 Node* build_tree(Heap* heap) {
     while (heap->size >= 2) {
-        Node* n1 = heap_extract(heap);
-        Node* n2 = heap_extract(heap);
+        Node* n1 = (Node*) heap_extract(heap);
+        Node* n2 = (Node*) heap_extract(heap);
         if (n1 == NULL || n2 == NULL) {
             return NULL;
         }
 
         Node* new_node = combine_nodes(n1, n2);
         if (new_node == NULL) {
-            free(n1);
-            free(n2);
             return NULL;
         }
 
         ssize_t index = heap_insert(heap, new_node);
         if (index == -1) {
-            free(n1);
-            free(n2);
             free(new_node);
             return NULL;
         }
-        free(new_node);
     }
 
     return heap_extract(heap);
@@ -188,6 +180,26 @@ void free_tree(Node* root) {
     free_tree(root->l_node);
     // Free the current node
     free(root);
+}
+
+/*
+* Function: free_heap_nodes
+* -------------------------
+*  Iterates over the nodes in min-heap object
+*  and deletes them from the memory.
+*
+*  heap: Pointer to the min-heap object.
+*
+*  returns: Number of freed nodes.
+*/
+size_t free_heap_nodes(Heap* heap) {
+    size_t counter = 0;
+    for (size_t i = 0; i < heap->size; i++) {
+        Node* node = (Node*) heap->nodes[i];
+        free(node);
+        counter++;
+    }
+    return counter;
 }
 
 /*
@@ -248,30 +260,30 @@ int write_file_header(FILE* output_file, size_t* frequency_table) {
 size_t* read_file_header(FILE* input_file, size_t* list_size, size_t* bit_count) {
     size_t* frequency_table = malloc(FREQUENCY_TABLE_SIZE * sizeof(size_t));
     if (frequency_table == NULL) {
-        fprintf(stderr, "\n[ERROR]: count_run() {} -> Unable to allocate memory for frequency table!\n");
+        fprintf(stderr, "\n[ERROR]: read_file_header() {} -> Unable to allocate memory for frequency table!\n");
         return NULL;
     }
     // set every value to zero, in order to start counting occurance
     memset(frequency_table, 0, FREQUENCY_TABLE_SIZE * sizeof(size_t)); 
 
     fseek(input_file, 0, SEEK_SET);
-    size_t read_bytes = fread(&list_size, 1, 1, input_file);
-    if (read_bytes <= 0) {
-        fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
+    size_t read_bytes = fread(list_size, sizeof(unsigned char), 1, input_file);
+    if (read_bytes < 1) {
+        fprintf(stderr, "\n[ERROR]: read_file_head() {} -> File is corrupted!\n");
         return NULL;
     }
     (*list_size)++; // increase list_size by 1, because it was decreased by 1 when it was saved
 
     unsigned char* read_buffer = malloc(*list_size * sizeof(unsigned char) * 2);
     if (read_buffer == NULL) {
-        fprintf(stderr, "\n[ERROR]: decompress() {} -> Unable to allocate memory for buffer!\n");
+        fprintf(stderr, "\n[ERROR]: read_file_head() {} -> Unable to allocate memory for buffer!\n");
         return NULL;
     }
 
     size_t header_frequency_table_size = *list_size * 2;
     read_bytes = fread(read_buffer, sizeof(unsigned char), header_frequency_table_size, input_file);
-    if (read_bytes <= header_frequency_table_size) {
-        fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
+    if (read_bytes < header_frequency_table_size) {
+        fprintf(stderr, "\n[ERROR]: read_file_head() {} -> File is corrupted!\n");
         return NULL;
     }
 
@@ -289,7 +301,7 @@ size_t* read_file_header(FILE* input_file, size_t* list_size, size_t* bit_count)
     long total_bits_pos = sizeof(size_t);
     fseek(input_file, -1 * total_bits_pos, SEEK_END);
     if (fread(bit_count, sizeof(size_t), 1, input_file) < 1) {
-        fprintf(stderr, "\n[ERROR]: decompress() {} -> Unable to read total bit_count from file header!\n");
+        fprintf(stderr, "\n[ERROR]: read_file_head() {} -> Unable to read total bit_count from file header!\n");
         return NULL;
     }
     fseek(input_file, header_end_pos, SEEK_SET);

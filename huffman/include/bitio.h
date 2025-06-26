@@ -6,16 +6,16 @@
 #include <stdio.h>
 
 typedef struct {
-    FILE* file;
     unsigned char buffer[OUTPUT_BUFFER_SIZE];
+    FILE* file;
     size_t bit_count;
     size_t total_bits;
 } BitWriter;
 
 typedef struct {
-    FILE* file;
     unsigned char buffer[READ_BUFFER_SIZE];
     int bit_pos; // Bit position in current byte (0-7)
+    FILE* file;
     size_t buffer_pos; // Current byte position in buffer
     size_t buffer_size; // Bytes in buffer
     size_t bits_read; // Total bits read
