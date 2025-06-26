@@ -1,5 +1,4 @@
 #include "../include/constants.h"
-#include "../include/huffman.h"
 #include "../include/minheap.h"
 
 #include <stdio.h>
