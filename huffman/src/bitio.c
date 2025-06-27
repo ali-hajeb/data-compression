@@ -14,6 +14,10 @@
 *  returns: A BitWriter object. If failed, returns NULL.
 */
 BitWriter* init_writer(FILE* file) {
+    if (file == NULL) {
+        fprintf(stderr, "\n[ERROR]: init_writer() {} -> File does not exit!\n");
+        return NULL;
+    }
     BitWriter* bit_writer = malloc(sizeof(BitWriter));
     if (bit_writer == NULL) {
         fprintf(stderr, "\n[ERROR]: init_writer() {} -> Unable to allocate memory for bit_writer!\n");
@@ -39,6 +43,10 @@ BitWriter* init_writer(FILE* file) {
 *  returns: The number of written bits. If failed, returns -1.
 */
 ssize_t write_bits(BitWriter* bit_writer, uint32_t code, uint8_t length) {
+    if (bit_writer == NULL) {
+        fprintf(stderr, "\n[ERROR]: write_bits() {} -> Bit writer is NULL!\n");
+        return -1;
+    }
     // if no bits, return 0
     if (length == 0) return 0;
 
@@ -84,6 +92,10 @@ ssize_t write_bits(BitWriter* bit_writer, uint32_t code, uint8_t length) {
 *  returns: The number of written bytes. If failed, returns -1.
 */
 ssize_t flush_writer(BitWriter* bit_writer) {
+    if (bit_writer == NULL) {
+        fprintf(stderr, "\n[ERROR]: flush_writer() {} -> Bit writer is NULL!\n");
+        return -1;
+    }
     // Calculate the maximum required bytes
     size_t bytes = (bit_writer->bit_count + 7) / 8;
     size_t written_bytes = 0;
@@ -110,6 +122,10 @@ ssize_t flush_writer(BitWriter* bit_writer) {
 *  returns: A BitReader object. If failed, returns NULL.
 */
 BitReader* init_reader(FILE* file) {
+    if (file == NULL) {
+        fprintf(stderr, "\n[ERROR]: init_reader() {} -> File does not exit!\n");
+        return NULL;
+    }
     BitReader* bit_reader = malloc(sizeof(BitReader));
     if (bit_reader == NULL) {
         fprintf(stderr, "\n[ERROR]: init_reader() {} -> Unable to allocate memory for bit_reader!\n");
@@ -134,6 +150,10 @@ BitReader* init_reader(FILE* file) {
 *  returns: The value of the bit. if failed, returns -1.
 */
 int read_bits(BitReader* bit_reader) {
+    if (bit_reader == NULL) {
+        fprintf(stderr, "\n[ERROR]: read_bits() {} -> Bit reader is NULL!\n");
+        return -1;
+    }
     // Reset read_buffer
     if (bit_reader->bit_pos == 8) {
         // Read new data

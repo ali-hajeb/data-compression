@@ -3,7 +3,9 @@
 #include "../include/huffman.h"
 #include "../include/compressor.h"
 #include "../include/resources.h"
+#include "../include/utils.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -19,12 +21,17 @@
 * returns: Count of inserted nodes.
 */
 ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue) {
+    if (frequency_table == NULL || priority_queue == NULL) {
+        err("fill_minheap", "Frequency table and/or priority queue is NULL!");
+        return -1;
+    }
+
     for (size_t i = 0; i < FREQUENCY_TABLE_SIZE; i++) {
         if (frequency_table[i] != 0) {
             // Create a new node
             Node* node = malloc(sizeof(Node));
             if (node == NULL) {
-                fprintf(stderr, "[ERROR]: fill_minheap() {} -> Unable to allocate memory for the node!\n");
+                err("fill_minheap", "Unable to allocate memory for the node!");
                 return priority_queue->size;
             }
             node->symbol = (unsigned char) i;
@@ -34,7 +41,7 @@ ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue) {
             // Insert the new node to heap node list
             ssize_t node_index = heap_insert(priority_queue, node);
             if (node_index == -1) {
-                fprintf(stderr, "\n[ERROR]: fill_minheap() {} -> Heap insert failed!\n");
+                err("fill_minheap", "Heap insert failed!");
                 return priority_queue->size;
             }
         }
@@ -53,6 +60,10 @@ ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue) {
 * returns: If failed (0), On success (1)
 */
 int compress(FILE* input_file, FILE* output_file) {
+    if (input_file == NULL || output_file == NULL) {
+        err("compress", "Input/output file is NULL!\n");
+        return 0;
+    }
     // Initialize resource management system
     Resources resource = resources_init(3);
     // Generate frequency table
@@ -201,7 +212,7 @@ void print_heap(Heap* heap, const char* title) {
     Node* nodes = (Node*) heap->nodes;
     printf("\n===========| %s |===========\n", title);
     for (size_t i = 0; i < heap->size; i++) {
-        printf("[%2X]: %c (%zu)\n", nodes[i].symbol, nodes[i].symbol, nodes[i].frequency);
+        printf("[%02X]: %c (%zu)\n", nodes[i].symbol, nodes[i].symbol, nodes[i].frequency);
     }
     printf("============================\n");
 }
