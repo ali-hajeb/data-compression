@@ -3,6 +3,7 @@
 #include "../include/bitio.h"
 #include "../include/huffman.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -348,19 +349,24 @@ void generate_huffman_code(Code* code_table, uint32_t code, uint8_t depth, Node*
 *  returns: If failed (0), On success (1)
 */
 int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
-    unsigned char read_buffer[READ_BUFFER_SIZE];
+    unsigned char* read_buffer = malloc(READ_BUFFER_SIZE * sizeof(unsigned char));
+    if (read_buffer == NULL) {
+        fprintf(stderr, "\n[ERROR]: encode() {} -> Unable to allocate memory for buffer!\n");
+        return NULL;
+    }
     size_t bytes_read = 0;
     size_t file_size = get_file_size(input_file);
     size_t processed = 0;
     fseek(input_file, 0, SEEK_SET);
 
-    while((bytes_read = fread(read_buffer, 1, READ_BUFFER_SIZE, input_file)) > 0) {
+    while((bytes_read = fread(read_buffer, sizeof(unsigned char), READ_BUFFER_SIZE, input_file)) > 0) {
         for (size_t i = 0; i < bytes_read; i++) {
             unsigned char symbol = read_buffer[i];
             // Encode symbol to huffman bits
             if (code_table[symbol].length > 0) {
                 int status = write_bits(bit_writer, code_table[symbol].code, code_table[symbol].length);
                 if (status == -1) {
+                    free(read_buffer);
                     return 0;
                 }
             }
@@ -372,14 +378,16 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
     }
 
     // Flush the remaining data in writer to the file
-    int status = flush_writer(bit_writer);
-    if (status == -1) {
+    int result = flush_writer(bit_writer);
+    if (result == -1) {
+        free(read_buffer);
         return 0;
     }
 
     long compressed_file_size = ftell(bit_writer->file);
     double compression_rate = (double) (file_size - compressed_file_size) / file_size * 100;
     printf("\rProcessing: %zu/%zu bytes. -> %ld bytes (%.2f%s)\n", processed, file_size, compressed_file_size, compression_rate, "%");
+    free(read_buffer);
     return 1;
 }
 
@@ -396,7 +404,11 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
 *  returns: If failed (0), on success (1)
 */
 int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bits) {
-    unsigned char output_buffer[OUTPUT_BUFFER_SIZE];
+    unsigned char* output_buffer = malloc(READ_BUFFER_SIZE * sizeof(unsigned char));
+    if (output_buffer == NULL) {
+        fprintf(stderr, "\n[ERROR]: encode() {} -> Unable to allocate memory for buffer!\n");
+        return NULL;
+    }
     size_t output_pos = 0;
     size_t file_size = get_file_size(bit_reader->file);
     size_t processed = ftell(bit_reader->file);
@@ -413,8 +425,9 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
             output_buffer[output_pos++] = current->symbol;
             // Flush output_buffer
             if (output_pos == OUTPUT_BUFFER_SIZE) {
-                size_t written_bytes = fwrite(output_buffer, 1, OUTPUT_BUFFER_SIZE, output_file);
+                size_t written_bytes = fwrite(output_buffer, sizeof(unsigned char), OUTPUT_BUFFER_SIZE, output_file);
                 if (written_bytes < OUTPUT_BUFFER_SIZE) {
+                    free(output_buffer);
                     return 0;
                 }
                 output_pos = 0;
@@ -429,13 +442,15 @@ int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bi
 
     // Flush the remaining data in writer to the file
     if (output_pos > 0) {
-        size_t written_bytes = fwrite(output_buffer, 1, output_pos, output_file);
+        size_t written_bytes = fwrite(output_buffer, sizeof(unsigned char), output_pos, output_file);
         if (written_bytes < output_pos) {
+            free(output_buffer);
             return 0;
         }
     }
     size_t read_bytes = bit_reader->bits_read / 8;
     printf("\rProcessing: %ld/%ld bytes. -> %ld bytes.\n", processed + read_bytes, file_size, ftell(output_file));
 
+    free(output_buffer);
     return 1;
 }
