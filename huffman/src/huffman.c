@@ -364,8 +364,8 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table) {
             unsigned char symbol = read_buffer[i];
             // Encode symbol to huffman bits
             if (code_table[symbol].length > 0) {
-                int status = write_bits(bit_writer, code_table[symbol].code, code_table[symbol].length);
-                if (status == -1) {
+                int result = write_bits(bit_writer, code_table[symbol].code, code_table[symbol].length);
+                if (result == -1) {
                     free(read_buffer);
                     return 0;
                 }

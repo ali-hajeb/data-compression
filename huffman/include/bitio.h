@@ -13,7 +13,7 @@ typedef struct {
 } BitWriter;
 
 typedef struct {
-    unsigned char buffer[READ_BUFFER_SIZE];
+    unsigned char buffer[OUTPUT_BUFFER_SIZE];
     int bit_pos; // Bit position in current byte (0-7)
     FILE* file;
     size_t buffer_pos; // Current byte position in buffer
