@@ -42,8 +42,15 @@ int decompress(FILE* input_file, FILE* output_file) {
         err("decompress", "Input/output file is NULL!");
     }
 
+    CompressionMode compression_mode;
+    int read_result = fread(&compression_mode, sizeof(CompressionMode), 1, input_file);
+    if (read_result < 1 || (compression_mode != basic && compression_mode != advance)) {
+        fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
+        return 0;
+    }
+    
     RLEReader rle_reader;
-    init_reader(&rle_reader, output_file);
+    init_reader(&rle_reader, output_file, compression_mode);
 
     int result = decode(input_file, &rle_reader);
     return result;

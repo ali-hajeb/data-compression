@@ -19,7 +19,7 @@ typedef struct {
     FILE* file;
     CompressionMode compression_mode;
     size_t buffer_pos;
-    size_t counter_pos;
+    ssize_t counter_pos;
     size_t flag_byte_count;
 } RLEWriter;
 
@@ -31,7 +31,7 @@ typedef struct {
 } RLEReader;
 
 int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_mode);
-int init_reader(RLEReader* rle_reader, FILE* file);
+int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_mode);
 int write_rle(RLEWriter* rle_writer, unsigned char* chr);
 size_t read_rle(RLEReader* rle_reader, unsigned char* counter_byte);
 int flush_writer(RLEWriter* rle_writer);

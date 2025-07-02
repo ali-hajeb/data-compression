@@ -1,6 +1,7 @@
 #include "../include/rle.h"
 #include "../include/utils.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -20,18 +21,14 @@ int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_m
     return 1;
 }
 
-int init_reader(RLEReader* rle_reader, FILE* file) {
+int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_mode) {
     if (file == NULL || rle_reader == NULL) {
         fprintf(stderr, "[ERROR]: init_reader() {} -> Required parameters are NULL!\n");
         return 0;
     }
 
     rle_reader->file = file;
-    int result = fread(&rle_reader->compression_mode, sizeof(CompressionMode), 1, file);
-    if (result < 1 || (rle_reader->compression_mode != basic && rle_reader->compression_mode != advance)) {
-        fprintf(stderr, "\n[ERROR]: init_reader() {} -> File is corrupted!\n");
-        return 0;
-    }
+    rle_reader->compression_mode = compression_mode;
     rle_reader->buffer_pos = 0;
     return 1;
 }
@@ -50,11 +47,14 @@ int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
 
     if (rle_writer->flag_byte == *chr && rle_writer->flag_byte_count < rle_writer->count_limit) {
         rle_writer->flag_byte_count++;
+        rle_writer->counter_pos = -1;
     } else {
         if (rle_writer->flag_byte_count > 1 || rle_writer->compression_mode == basic) {
             rle_writer->buffer[rle_writer->buffer_pos++] = rle_writer->flag_byte_count + counter_padding;
             rle_writer->buffer[rle_writer->buffer_pos++] = rle_writer->flag_byte;
+            // printf("%zu. %02X[%zu]\n", rle_writer->buffer_pos, rle_writer->flag_byte, rle_writer->flag_byte_count);
         } else {
+            // printf("[%lld]\n", rle_writer->counter_pos);
             if (rle_writer->counter_pos > -1) {
                 // Increase the counter for uncompressed sequence
                 rle_writer->buffer[rle_writer->counter_pos]++;
@@ -68,10 +68,11 @@ int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
                 rle_writer->buffer[rle_writer->buffer_pos++] = 1;
                 rle_writer->buffer[rle_writer->buffer_pos++] = rle_writer->flag_byte;
             }
+            // printf("%zu[%02X] %02X\n", rle_writer->counter_pos, rle_writer->buffer[rle_writer->counter_pos], rle_writer->flag_byte);
         }
 
         if (rle_writer->buffer_pos >= OUTPUT_BUFFER_SIZE) {
-            int result = fwrite(rle_writer->buffer, sizeof(unsigned char), rle_writer->buffer_pos, rle_writer->file);
+            size_t result = fwrite(rle_writer->buffer, sizeof(unsigned char), rle_writer->buffer_pos, rle_writer->file);
             if (result < rle_writer->buffer_pos) {
                 fprintf(stderr, "\n[ERROR]: write_rle() {} -> Unable to flush the buffer!\n");
                 return 0;
@@ -86,12 +87,12 @@ int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
 }
 
 size_t read_rle(RLEReader* rle_reader, unsigned char* counter_byte) {
-    size_t count = *counter_byte;
+    int count = *counter_byte;
     if (rle_reader->compression_mode == advance && *counter_byte >= ADVANCE_COMPRESSION_LIMIT) {
         count -= 126;
     }
     if (count <= 0) {
-        fprintf(stderr, "\n[ERROR]: read_rle() {} -> Invalid value (count = %zu)\n", count);
+        fprintf(stderr, "\n[ERROR]: read_rle() {} -> Invalid value (count = %d)\n", count);
         return 0;
     }
 
@@ -113,7 +114,7 @@ size_t read_rle(RLEReader* rle_reader, unsigned char* counter_byte) {
             }
             read_bytes++;
         } else {
-            for (int i = 0; i < count; i++) {
+            for (int i = 1; i <= count; i++) {
                 rle_reader->buffer[rle_reader->buffer_pos++] = *(counter_byte + i);
                 read_bytes++;
             }
@@ -137,8 +138,8 @@ int flush_writer(RLEWriter* rle_writer) {
         unsigned char _chr = rle_writer->flag_byte + 1;
         write_rle(rle_writer, &_chr);
     }
-    if (rle_writer->buffer_pos >= OUTPUT_BUFFER_SIZE) {
-        int result = fwrite(rle_writer->buffer, sizeof(unsigned char), rle_writer->buffer_pos, rle_writer->file);
+    if (rle_writer->buffer_pos > 0) {
+        size_t result = fwrite(rle_writer->buffer, sizeof(unsigned char), rle_writer->buffer_pos, rle_writer->file);
         if (result < rle_writer->buffer_pos) {
             fprintf(stderr, "\n[ERROR]: flush_writer() {} -> Unable to flush the buffer!\n");
             return -1;
@@ -158,7 +159,7 @@ int flush_reader(RLEReader* rle_reader) {
     size_t flushed_bytes = 0;
     
     if (rle_reader->buffer_pos > 0) {
-        int result = fwrite(rle_reader->buffer, sizeof(unsigned char), rle_reader->buffer_pos, rle_reader->file);
+        size_t result = fwrite(rle_reader->buffer, sizeof(unsigned char), rle_reader->buffer_pos, rle_reader->file);
         if (result < rle_reader->buffer_pos) {
             fprintf(stderr, "\n[ERROR]: flush_reader() {} -> Unable to flush the buffer!\n");
             return 0;
@@ -237,7 +238,7 @@ ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
     size_t file_size = get_file_size(input_file);
     size_t processed = 0;
     // Skip the first byte (compression mode byte)
-    fseek(input_file, 1, SEEK_SET);
+    fseek(input_file, sizeof(CompressionMode), SEEK_SET);
 
     while ((read_bytes = fread(read_buffer, sizeof(unsigned char), READ_BUFFER_SIZE, input_file)) != 0) {
         for (size_t i = 0; i < read_bytes; i++) {    
@@ -257,10 +258,16 @@ ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
     }
 
     long compressed_file_size = ftell(rle_reader->file);
-    double compression_rate = (double) (file_size - compressed_file_size) / file_size * 100;
-    printf("\rProcessing: %zu/%zu bytes. -> %ld bytes (%.2f%s)\n", processed, file_size, 
-           compressed_file_size, compression_rate, "%");
+    printf("\rProcessing: %zu/%zu bytes. -> %ld bytes.\n", processed, file_size, compressed_file_size);
 
     free(read_buffer);
     return processed;
+}
+void print_buffer(RLEWriter* rle_writer, int cols) {
+    for (size_t i = 0; i < rle_writer->buffer_pos / cols + 1; i++) {
+        for (int j = 0; j < cols && cols * i + j < rle_writer->buffer_pos; j++) {
+            printf("%02X  ", rle_writer->buffer[cols*i+j]);
+        }
+        printf("\n");
+    }
 }
