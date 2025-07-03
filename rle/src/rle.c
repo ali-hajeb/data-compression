@@ -1,10 +1,20 @@
 #include "../include/rle.h"
 #include "../include/utils.h"
 
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+/*
+* Function: init_writer
+* ---------------------
+*  Initiates the RLEWriter object.
+*
+*  rle_writer: Pointer to the RLEWriter to initiate.
+*  file: Pointer to the output file.
+*  compression_mode: Compression algorithm ('basic' or 'advance').
+*
+*  returns: If failed (0), on success (1)
+*/
 int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_mode) {
     if (file == NULL || rle_writer == NULL) {
         fprintf(stderr, "[ERROR]: init_writer() {} -> Required parameters are NULL!\n");
@@ -21,6 +31,17 @@ int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_m
     return 1;
 }
 
+/*
+* Function: init_reader
+* ---------------------
+*  Initiates the RLEReader object.
+*
+*  rle_reader: Pointer to the RLEReader to initiate.
+*  file: Pointer to the output file.
+*  compression_mode: Compression algorithm ('basic' or 'advance').
+*
+*  returns: If failed (0), on success (1)
+*/
 int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_mode) {
     if (file == NULL || rle_reader == NULL) {
         fprintf(stderr, "[ERROR]: init_reader() {} -> Required parameters are NULL!\n");
@@ -33,6 +54,16 @@ int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_m
     return 1;
 }
 
+/*
+* Function: write_rle
+* -------------------
+*  Encodes and write RLE for the given character.
+*
+*  rle_writer: Pointer to the initiated RLEWriter.
+*  chr: Pointer to the character from file.
+*
+*  returns: If failed (0), on success (1).
+*/
 int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
     if (rle_writer == NULL || chr == NULL) {
         fprintf(stderr, "\n[ERROR]: write_rle() {} -> Required parameters are NULL!\n");
@@ -52,9 +83,7 @@ int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
         if (rle_writer->flag_byte_count > 1 || rle_writer->compression_mode == basic) {
             rle_writer->buffer[rle_writer->buffer_pos++] = rle_writer->flag_byte_count + counter_padding;
             rle_writer->buffer[rle_writer->buffer_pos++] = rle_writer->flag_byte;
-            // printf("%zu. %02X[%zu]\n", rle_writer->buffer_pos, rle_writer->flag_byte, rle_writer->flag_byte_count);
         } else {
-            // printf("[%lld]\n", rle_writer->counter_pos);
             if (rle_writer->counter_pos > -1) {
                 // Increase the counter for uncompressed sequence
                 rle_writer->buffer[rle_writer->counter_pos]++;
@@ -68,7 +97,6 @@ int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
                 rle_writer->buffer[rle_writer->buffer_pos++] = 1;
                 rle_writer->buffer[rle_writer->buffer_pos++] = rle_writer->flag_byte;
             }
-            // printf("%zu[%02X] %02X\n", rle_writer->counter_pos, rle_writer->buffer[rle_writer->counter_pos], rle_writer->flag_byte);
         }
 
         if (rle_writer->buffer_pos >= OUTPUT_BUFFER_SIZE) {
@@ -86,6 +114,16 @@ int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
     return 1;
 }
 
+/*
+* Function: read_rle
+* -------------------
+*  Decodes and write uncompressed data for the given compressed stream.
+*
+*  rle_reader: Pointer to the initiated RLEReader.
+*  counter_byter: Pointer to the counter byte in compressed stream.
+*
+*  returns: Decoded bytes count.
+*/
 size_t read_rle(RLEReader* rle_reader, unsigned char* counter_byte) {
     int count = *counter_byte;
     if (rle_reader->compression_mode == advance && *counter_byte >= ADVANCE_COMPRESSION_LIMIT) {
@@ -102,28 +140,30 @@ size_t read_rle(RLEReader* rle_reader, unsigned char* counter_byte) {
 
     size_t read_bytes = 0;
     
-    if (rle_reader->compression_mode == basic) {
+    if (rle_reader->compression_mode == basic || *counter_byte >= ADVANCE_COMPRESSION_LIMIT) {
         for (int i = 0; i < count; i++) {
             rle_reader->buffer[rle_reader->buffer_pos++] = *(counter_byte + 1);
         }
         read_bytes++;
     } else {
-        if (*counter_byte >= ADVANCE_COMPRESSION_LIMIT) {
-            for (int i = 0; i < count; i++) {
-                rle_reader->buffer[rle_reader->buffer_pos++] = *(counter_byte + 1);
-            }
+        for (int i = 1; i <= count; i++) {
+            rle_reader->buffer[rle_reader->buffer_pos++] = *(counter_byte + i);
             read_bytes++;
-        } else {
-            for (int i = 1; i <= count; i++) {
-                rle_reader->buffer[rle_reader->buffer_pos++] = *(counter_byte + i);
-                read_bytes++;
-            }
         }
 
     }
     return read_bytes;
 }
 
+/*
+* Function: flush_writer
+* ----------------------
+*  Flushes the remaining data in buffer to the output file.
+*
+*  rle_writer: Pointer to the initiated RLEWriter
+*
+*  returns: Written bytes count.
+*/
 int flush_writer(RLEWriter* rle_writer) {
     if (rle_writer == NULL) {
         fprintf(stderr, "\n[ERROR]: flush_writer() {} -> RLEWriter is NULL!\n");
@@ -150,6 +190,15 @@ int flush_writer(RLEWriter* rle_writer) {
     return processed;
 }
 
+/*
+* Function: flush_reader
+* ----------------------
+*  Flushes the remaining data in buffer to the output file.
+*
+*  rle_readaer: Pointer to the initiated RLEReader
+*
+*  returns: Written bytes count.
+*/
 int flush_reader(RLEReader* rle_reader) {
     if (rle_reader == NULL) {
         fprintf(stderr, "\n[ERROR]: flush_reader() {} -> RLEReader is NULL!\n");
@@ -170,6 +219,16 @@ int flush_reader(RLEReader* rle_reader) {
     return flushed_bytes;
 }
 
+/*
+* Function: encode
+* ----------------
+*  Encodes file using RLE technique.
+*
+*  input_file: Pointer to the input file.
+*  rle_writer: Pointer to the initiated RLEWriter.
+*
+*  returns: Encoded bytes count. If failed (-1).
+*/
 ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
     if (input_file == NULL) {
         fprintf(stderr, "[ERROR]: encode() {} -> File pointer is NULL!\n");
@@ -186,8 +245,9 @@ ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
     size_t file_size = get_file_size(input_file);
     size_t processed = 0;
     fseek(input_file, 0, SEEK_SET);
-
-    if (fwrite(&rle_writer->compression_mode, sizeof(CompressionMode), 1, rle_writer->file) < 1) {
+    
+    unsigned char compression_mode_flag_byte = (unsigned char) rle_writer->compression_mode;
+    if (fwrite(&compression_mode_flag_byte, sizeof(unsigned char), 1, rle_writer->file) < 1) {
         fprintf(stderr, "\n[ERROR]: encode() {} -> Unable to write the compression mode to the file!\n");
         free(read_buffer);
         return -1;
@@ -214,14 +274,25 @@ ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
     }
 
     long compressed_file_size = ftell(rle_writer->file);
-    double compression_rate = (double) (file_size - compressed_file_size) / file_size * 100;
-    printf("\rProcessing: %zu/%zu bytes. -> %ld bytes (%.2f%s)\n", processed, file_size, 
-           compressed_file_size, compression_rate, "%");
+    int size_diff = file_size - compressed_file_size;
+    double compression_rate = (double) abs(size_diff) / file_size * 100;
+    printf("\rProcessing: %zu/%zu bytes. -> %ld bytes (%s%.2f%s)\n", processed, file_size, 
+           compressed_file_size, size_diff > 0 ? "-" : "+", compression_rate, "%");
 
     free(read_buffer);
     return processed;
 }
 
+/*
+* Function: decode
+* ----------------
+*  Decodes file using RLE technique.
+*
+*  input_file: Pointer to the input file.
+*  rle_reader: Pointer to the initiated RLEReader.
+*
+*  returns: Decoded bytes count. If failed (-1).
+*/
 ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
     if (input_file == NULL) {
         fprintf(stderr, "[ERROR]: decode() {} -> File pointer is NULL!\n");
@@ -238,7 +309,7 @@ ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
     size_t file_size = get_file_size(input_file);
     size_t processed = 0;
     // Skip the first byte (compression mode byte)
-    fseek(input_file, sizeof(CompressionMode), SEEK_SET);
+    fseek(input_file, sizeof(unsigned char), SEEK_SET);
 
     while ((read_bytes = fread(read_buffer, sizeof(unsigned char), READ_BUFFER_SIZE, input_file)) != 0) {
         for (size_t i = 0; i < read_bytes; i++) {    
@@ -263,6 +334,15 @@ ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
     free(read_buffer);
     return processed;
 }
+
+/*
+* Function: print_buffer
+* ----------------------
+*  Prints HEX values of buffer content.
+*
+*  rle_writer: Pointer to the initiated RLEWriter.
+*  cols: Number of Columns.
+*/
 void print_buffer(RLEWriter* rle_writer, int cols) {
     for (size_t i = 0; i < rle_writer->buffer_pos / cols + 1; i++) {
         for (int j = 0; j < cols && cols * i + j < rle_writer->buffer_pos; j++) {

@@ -30,14 +30,109 @@ typedef struct {
     size_t buffer_pos;
 } RLEReader;
 
+/*
+* Function: init_writer
+* ---------------------
+*  Initiates the RLEWriter object.
+*
+*  rle_writer: Pointer to the RLEWriter to initiate.
+*  file: Pointer to the output file.
+*  compression_mode: Compression algorithm ('basic' or 'advance').
+*
+*  returns: If failed (0), on success (1)
+*/
 int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_mode);
+
+/*
+* Function: init_reader
+* ---------------------
+*  Initiates the RLEReader object.
+*
+*  rle_reader: Pointer to the RLEReader to initiate.
+*  file: Pointer to the output file.
+*  compression_mode: Compression algorithm ('basic' or 'advance').
+*
+*  returns: If failed (0), on success (1)
+*/
 int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_mode);
+
+/*
+* Function: write_rle
+* -------------------
+*  Encodes and write RLE for the given character.
+*
+*  rle_writer: Pointer to the initiated RLEWriter.
+*  chr: Pointer to the character from file.
+*
+*  returns: If failed (0), on success (1).
+*/
 int write_rle(RLEWriter* rle_writer, unsigned char* chr);
+
+/*
+* Function: read_rle
+* -------------------
+*  Decodes and write uncompressed data for the given compressed stream.
+*
+*  rle_reader: Pointer to the initiated RLEReader.
+*  counter_byter: Pointer to the counter byte in compressed stream.
+*
+*  returns: Decoded bytes count.
+*/
 size_t read_rle(RLEReader* rle_reader, unsigned char* counter_byte);
+
+/*
+* Function: flush_writer
+* ----------------------
+*  Flushes the remaining data in buffer to the output file.
+*
+*  rle_writer: Pointer to the initiated RLEWriter
+*
+*  returns: Written bytes count.
+*/
 int flush_writer(RLEWriter* rle_writer);
+
+/*
+* Function: flush_reader
+* ----------------------
+*  Flushes the remaining data in buffer to the output file.
+*
+*  rle_readaer: Pointer to the initiated RLEReader
+*
+*  returns: Written bytes count.
+*/
 int flush_reader(RLEReader* rle_reader);
+
+/*
+* Function: encode
+* ----------------
+*  Encodes file using RLE technique.
+*
+*  input_file: Pointer to the input file.
+*  rle_writer: Pointer to the initiated RLEWriter.
+*
+*  returns: Encoded bytes count. If failed (-1).
+*/
 ssize_t encode(FILE* input_file, RLEWriter* rle_writer);
+
+/*
+* Function: decode
+* ----------------
+*  Decodes file using RLE technique.
+*
+*  input_file: Pointer to the input file.
+*  rle_reader: Pointer to the initiated RLEReader.
+*
+*  returns: Decoded bytes count. If failed (-1).
+*/
 ssize_t decode(FILE* input_file, RLEReader* rle_reader);
 
-int flush_reader(RLEReader* rle_reader);
+/*
+* Function: print_buffer
+* ----------------------
+*  Prints HEX values of buffer content.
+*
+*  rle_writer: Pointer to the initiated RLEWriter.
+*  cols: Number of Columns.
+*/
+void print_buffer(RLEWriter* rle_writer, int cols);
 #endif

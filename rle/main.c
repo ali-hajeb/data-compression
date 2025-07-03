@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 void print_cli_example();
@@ -106,7 +107,7 @@ int main(int argc, char* argv[])
         int result = compress(input_file, output_file, compression_mode);
         fclose(input_file);
         fclose(output_file);
-        printf("\n--->> Compression ");
+        printf("\n\t--->> Compression ");
         if (result) {
             printf("completed!\n");
         } else {
@@ -158,7 +159,7 @@ int main(int argc, char* argv[])
         int result = decompress(input_file, output_file);
         fclose(input_file);
         fclose(output_file);
-        printf("\n--->> Decompression ");
+        printf("\n\t--->> Decompression ");
         if (result) {
             printf("completed!\n");
         } else {
@@ -167,16 +168,8 @@ int main(int argc, char* argv[])
         }
     }
 
+    printf("\n\r");
     free(output_file_path);
     free(input_file_path);
     return 0;
-}
-
-void print_cli_example()
-{
-    printf("\r[Usage]:\n");
-    printf("\r\t-c <file path>: Compress file and save it.\n");
-    printf("\r\t-d <file path>: Decompress file and save it.\n");
-    printf("\r\t[EXAMPLE]: ./rle -c image.bmp\n");
-    printf("\n");
 }

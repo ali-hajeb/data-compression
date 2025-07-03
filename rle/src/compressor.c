@@ -43,7 +43,7 @@ int decompress(FILE* input_file, FILE* output_file) {
     }
 
     CompressionMode compression_mode;
-    int read_result = fread(&compression_mode, sizeof(CompressionMode), 1, input_file);
+    int read_result = fread(&compression_mode, sizeof(unsigned char), 1, input_file);
     if (read_result < 1 || (compression_mode != basic && compression_mode != advance)) {
         fprintf(stderr, "\n[ERROR]: decompress() {} -> File is corrupted!\n");
         return 0;
