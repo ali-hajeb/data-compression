@@ -1,8 +1,11 @@
+#include "../include/constants.h"
 #include "../include/rle.h"
 #include "../include/utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
 /*
 * Function: init_writer
@@ -11,12 +14,13 @@
 *
 *  rle_writer: Pointer to the RLEWriter to initiate.
 *  file: Pointer to the output file.
+*  writer_buffer_size: RLEWriter buffer (output buffer) size 
 *  compression_mode: Compression algorithm ('basic' or 'advance').
 *
 *  returns: If failed (0), on success (1)
 */
-int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_mode) {
-    if (file == NULL || rle_writer == NULL) {
+int init_writer(RLEWriter* rle_writer, FILE* file, size_t writer_buffer_size, CompressionMode compression_mode) {
+    if (file == NULL || rle_writer == NULL || writer_buffer_size == 0) {
         fprintf(stderr, "[ERROR]: init_writer() {} -> Required parameters are NULL!\n");
         return 0;
     }
@@ -25,6 +29,12 @@ int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_m
     rle_writer->compression_mode = compression_mode;
     rle_writer->count_limit = compression_mode == basic ? BASIC_COMPRESSION_LIMIT : ADVANCE_COMPRESSION_LIMIT;
     rle_writer->counter_pos = -1;
+    rle_writer->buffer_size = writer_buffer_size * sizeof(unsigned char);
+    rle_writer->buffer = malloc(rle_writer->buffer_size);
+    if (rle_writer->buffer == NULL) {
+        fprintf(stderr, "[ERROR]: init_writer() {} -> Unable to allocate memory for the buffer!\n");
+        return 0;
+    }
     rle_writer->buffer_pos = 0;
     rle_writer->flag_byte = 0;
     rle_writer->flag_byte_count = 0;
@@ -38,11 +48,12 @@ int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_m
 *
 *  rle_reader: Pointer to the RLEReader to initiate.
 *  file: Pointer to the output file.
+*  reader_buffer_size: RLEReader buffer (output buffer) size 
 *  compression_mode: Compression algorithm ('basic' or 'advance').
 *
 *  returns: If failed (0), on success (1)
 */
-int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_mode) {
+int init_reader(RLEReader* rle_reader, FILE* file, size_t reader_buffer_size, CompressionMode compression_mode) {
     if (file == NULL || rle_reader == NULL) {
         fprintf(stderr, "[ERROR]: init_reader() {} -> Required parameters are NULL!\n");
         return 0;
@@ -50,6 +61,12 @@ int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_m
 
     rle_reader->file = file;
     rle_reader->compression_mode = compression_mode;
+    rle_reader->buffer_size = reader_buffer_size * sizeof(unsigned char);
+    rle_reader->buffer = malloc(rle_reader->buffer_size);
+    if (rle_reader->buffer == NULL) {
+        fprintf(stderr, "[ERROR]: init_reader() {} -> Unable to allocate memory for the buffer!\n");
+        return 0;
+    }
     rle_reader->buffer_pos = 0;
     return 1;
 }
@@ -99,7 +116,7 @@ int write_rle(RLEWriter* rle_writer, unsigned char* chr) {
             }
         }
 
-        if (rle_writer->buffer_pos >= OUTPUT_BUFFER_SIZE) {
+        if (rle_writer->buffer_pos >= rle_writer->buffer_size) {
             size_t result = fwrite(rle_writer->buffer, sizeof(unsigned char), rle_writer->buffer_pos, rle_writer->file);
             if (result < rle_writer->buffer_pos) {
                 fprintf(stderr, "\n[ERROR]: write_rle() {} -> Unable to flush the buffer!\n");
@@ -134,7 +151,7 @@ size_t read_rle(RLEReader* rle_reader, unsigned char* counter_byte) {
         return 0;
     }
 
-    if (rle_reader->buffer_pos + count >= OUTPUT_BUFFER_SIZE) {
+    if (rle_reader->buffer_pos + count >= rle_reader->buffer_size) {
         flush_reader(rle_reader);
     }
 
@@ -226,16 +243,17 @@ int flush_reader(RLEReader* rle_reader) {
 *
 *  input_file: Pointer to the input file.
 *  rle_writer: Pointer to the initiated RLEWriter.
+*  chunk_size: Input buffer size
 *
 *  returns: Encoded bytes count. If failed (-1).
 */
-ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
+ssize_t encode(FILE* input_file, RLEWriter* rle_writer, size_t chunk_size) {
     if (input_file == NULL) {
         fprintf(stderr, "[ERROR]: encode() {} -> File pointer is NULL!\n");
         return -1;
     }
 
-    unsigned char* read_buffer = malloc(READ_BUFFER_SIZE * sizeof(unsigned char));
+    unsigned char* read_buffer = malloc(chunk_size * sizeof(unsigned char));
     if (read_buffer == NULL) {
         fprintf(stderr, "\n[ERROR]: encode() {} -> Unable to allocate memory for buffer!\n");
         return -1;
@@ -245,7 +263,8 @@ ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
     size_t file_size = get_file_size(input_file);
     size_t processed = 0;
     fseek(input_file, 0, SEEK_SET);
-    
+    clock_t start_time = clock();
+
     unsigned char compression_mode_flag_byte = (unsigned char) rle_writer->compression_mode;
     if (fwrite(&compression_mode_flag_byte, sizeof(unsigned char), 1, rle_writer->file) < 1) {
         fprintf(stderr, "\n[ERROR]: encode() {} -> Unable to write the compression mode to the file!\n");
@@ -253,7 +272,7 @@ ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
         return -1;
     }
 
-    while ((read_bytes = fread(read_buffer, sizeof(unsigned char), READ_BUFFER_SIZE, input_file)) != 0) {
+    while ((read_bytes = fread(read_buffer, sizeof(unsigned char), chunk_size, input_file)) != 0) {
         for (size_t i = 0; i < read_bytes; i++) {
             int result = write_rle(rle_writer, &read_buffer[i]);
             if (result == 0) {
@@ -267,17 +286,22 @@ ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
         }
     }
 
-    int result = flush_writer(rle_writer);
-    if (result < 0) {
-        free(read_buffer);
-        return -1;
+    if (rle_writer->buffer_pos > 0) {
+        int result = flush_writer(rle_writer);
+        if (result < 0) {
+            free(read_buffer);
+            return -1;
+        }
     }
+
+    clock_t end_time = clock();
 
     long compressed_file_size = ftell(rle_writer->file);
     int size_diff = file_size - compressed_file_size;
     double compression_rate = (double) abs(size_diff) / file_size * 100;
-    printf("\rProcessing: %zu/%zu bytes. -> %ld bytes (%s%.2f%s)\n", processed, file_size, 
-           compressed_file_size, size_diff > 0 ? "-" : "+", compression_rate, "%");
+    double time_spent = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("\rFinished processing (%f s): %zu bytes -> %ld bytes (%s%.2f%%)\n", time_spent, file_size, 
+           compressed_file_size, size_diff > 0 ? "-" : "+", compression_rate);
 
     free(read_buffer);
     return processed;
@@ -290,16 +314,17 @@ ssize_t encode(FILE* input_file, RLEWriter* rle_writer) {
 *
 *  input_file: Pointer to the input file.
 *  rle_reader: Pointer to the initiated RLEReader.
+*  chunk_size: Input buffer size
 *
 *  returns: Decoded bytes count. If failed (-1).
 */
-ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
+ssize_t decode(FILE* input_file, RLEReader* rle_reader, size_t chunk_size) {
     if (input_file == NULL) {
         fprintf(stderr, "[ERROR]: decode() {} -> File pointer is NULL!\n");
         return -1;
     }
 
-    unsigned char* read_buffer = malloc(READ_BUFFER_SIZE * sizeof(unsigned char));
+    unsigned char* read_buffer = malloc(chunk_size * sizeof(unsigned char));
     if (read_buffer == NULL) {
         fprintf(stderr, "\n[ERROR]: decode() {} -> Unable to allocate memory for buffer!\n");
         return -1;
@@ -308,10 +333,11 @@ ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
     size_t read_bytes = 0;
     size_t file_size = get_file_size(input_file);
     size_t processed = 0;
+    clock_t start_time = clock();
     // Skip the first byte (compression mode byte)
     fseek(input_file, sizeof(unsigned char), SEEK_SET);
 
-    while ((read_bytes = fread(read_buffer, sizeof(unsigned char), READ_BUFFER_SIZE, input_file)) != 0) {
+    while ((read_bytes = fread(read_buffer, sizeof(unsigned char), chunk_size, input_file)) != 0) {
         for (size_t i = 0; i < read_bytes; i++) {    
             size_t processed_bytes = read_rle(rle_reader, &read_buffer[i]);
             i += processed_bytes;
@@ -328,8 +354,10 @@ ssize_t decode(FILE* input_file, RLEReader* rle_reader) {
         return -1;
     }
 
+    clock_t end_time = clock();
+    double time_spent = (double)(end_time - start_time) / CLOCKS_PER_SEC;
     long compressed_file_size = ftell(rle_reader->file);
-    printf("\rProcessing: %zu/%zu bytes. -> %ld bytes.\n", processed, file_size, compressed_file_size);
+    printf("\rFinished Processing (%f s): %zu bytes -> %ld bytes\n", time_spent, file_size, compressed_file_size);
 
     free(read_buffer);
     return processed;

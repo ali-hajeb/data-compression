@@ -1,7 +1,5 @@
 #ifndef RLE_H
 #define RLE_H
-#include "constants.h"
-
 #include <stdio.h>
 
 #define BASIC_COMPRESSION_LIMIT 255
@@ -14,20 +12,22 @@ typedef enum {
 
 typedef struct {
     unsigned char flag_byte;
-    unsigned char buffer[OUTPUT_BUFFER_SIZE];
+    unsigned char* buffer;
     unsigned short count_limit;
     FILE* file;
     CompressionMode compression_mode;
     size_t buffer_pos;
+    size_t buffer_size;
     ssize_t counter_pos;
     size_t flag_byte_count;
 } RLEWriter;
 
 typedef struct {
-    unsigned char buffer[OUTPUT_BUFFER_SIZE];
+    unsigned char* buffer;
     FILE* file;
     CompressionMode compression_mode;
     size_t buffer_pos;
+    size_t buffer_size;
 } RLEReader;
 
 /*
@@ -37,11 +37,12 @@ typedef struct {
 *
 *  rle_writer: Pointer to the RLEWriter to initiate.
 *  file: Pointer to the output file.
+*  writer_buffer_size: RLEWriter buffer (output buffer) size 
 *  compression_mode: Compression algorithm ('basic' or 'advance').
 *
 *  returns: If failed (0), on success (1)
 */
-int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_mode);
+int init_writer(RLEWriter* rle_writer, FILE* file, size_t writer_buffer_size, CompressionMode compression_mode);
 
 /*
 * Function: init_reader
@@ -50,11 +51,12 @@ int init_writer(RLEWriter* rle_writer, FILE* file, CompressionMode compression_m
 *
 *  rle_reader: Pointer to the RLEReader to initiate.
 *  file: Pointer to the output file.
+*  reader_buffer_size: RLEReader buffer (output buffer) size 
 *  compression_mode: Compression algorithm ('basic' or 'advance').
 *
 *  returns: If failed (0), on success (1)
 */
-int init_reader(RLEReader* rle_reader, FILE* file, CompressionMode compression_mode);
+int init_reader(RLEReader* rle_reader, FILE* file, size_t reader_buffer_size, CompressionMode compression_mode);
 
 /*
 * Function: write_rle
@@ -109,10 +111,11 @@ int flush_reader(RLEReader* rle_reader);
 *
 *  input_file: Pointer to the input file.
 *  rle_writer: Pointer to the initiated RLEWriter.
+*  chunk_size: Input buffer size
 *
 *  returns: Encoded bytes count. If failed (-1).
 */
-ssize_t encode(FILE* input_file, RLEWriter* rle_writer);
+ssize_t encode(FILE* input_file, RLEWriter* rle_writer, size_t chunk_size);
 
 /*
 * Function: decode
@@ -121,10 +124,11 @@ ssize_t encode(FILE* input_file, RLEWriter* rle_writer);
 *
 *  input_file: Pointer to the input file.
 *  rle_reader: Pointer to the initiated RLEReader.
+*  chunk_size: Input buffer size
 *
 *  returns: Decoded bytes count. If failed (-1).
 */
-ssize_t decode(FILE* input_file, RLEReader* rle_reader);
+ssize_t decode(FILE* input_file, RLEReader* rle_reader, size_t chunk_size);
 
 /*
 * Function: print_buffer
