@@ -1,7 +1,9 @@
+#include "include/constants.h"
 #include "include/rle.h"
 #include "include/utils.h"
 #include "include/compressor.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,11 +19,13 @@ int main(int argc, char* argv[])
     int output_file_mode = 0;
     CompressionMode compression_mode = basic;
     // int verbose_mode = 0;
+    size_t compressed_buffer_size = COMPRESSED_BUFFER_SIZE;
+    size_t decompressed_buffer_size = DECOMPRESSED_BUFFER_SIZE;
     char* output_file_path = NULL;
     char* input_file_path = NULL;
 
     // Setting up the CLI
-    while ((opt = getopt(argc, argv, "c:d:o:vab")) != -1) {
+    while ((opt = getopt(argc, argv, "c:d:o:b:B:va")) != -1) {
         switch (opt) {
             case 'c':
                 if (decompress_mode) {
@@ -31,7 +35,7 @@ int main(int argc, char* argv[])
                 }
                 compress_mode = 1;
                 decompress_mode = 0;
-                input_file_path = malloc(strlen(optarg));
+                input_file_path = malloc(strlen(optarg) + 1);
                 if (input_file_path == NULL) {
                     err("main", "Unable to allocate memory for input file name!\n");
                     return EXIT_FAILURE;
@@ -46,7 +50,7 @@ int main(int argc, char* argv[])
                 }
                 decompress_mode = 1;
                 compress_mode = 0;
-                input_file_path = malloc(strlen(optarg));
+                input_file_path = malloc(strlen(optarg) + 1);
                 if (input_file_path == NULL) {
                     err("main", "Unable to allocate memory for input file name!\n");
                     return EXIT_FAILURE;
@@ -68,17 +72,30 @@ int main(int argc, char* argv[])
             case 'a':
                 compression_mode = advance;
                 break;
-            case 'b':
-                compression_mode = basic;
+            case 'b': {
+                size_t c_buffer_size = 0;
+                if (scanf(optarg, "%zu", &c_buffer_size) == 1) {
+                    compressed_buffer_size = c_buffer_size;
+                }
                 break;
+            }
+            case 'B': {
+                size_t d_buffer_size = 0;
+                if (scanf(optarg, "%zu", &d_buffer_size) == 1) {
+                    decompressed_buffer_size = d_buffer_size;
+                }
+                break;
+            }
             default:
                 fprintf(stderr, "[USAGE]: %s [-c filename] [-d filename] [-o output_file_name] [-a or -b] [-v]"
                                 "\n\t-c: compress file"
                                 "\n\t-d: decompress file"
                                 "\n\t-o: output file"
-                                "\n\t-a: use advance RLE algorithm"
-                                "\n\t-b: use basic (default) RLE algorithm"
-                                "\n\t-v: print logs\n\r", argv[0]);
+                                "\n\t-a: use advance RLE algorithm (default: basic)"
+                                "\n\t-b: compressed buffer (reader/writer buffer) size (default: %d bytes)"
+                                "\n\t-B: decompressed buffer (chunck reader) size (default: %d bytes)"
+                                "\n\t-v: print logs\n\r", 
+                        argv[0], (COMPRESSED_BUFFER_SIZE), (DECOMPRESSED_BUFFER_SIZE));
                 return EXIT_FAILURE;
         }
     }
@@ -104,7 +121,7 @@ int main(int argc, char* argv[])
             return EXIT_FAILURE;
         }
 
-        int result = compress(input_file, output_file, compression_mode);
+        int result = compress(input_file, output_file, compressed_buffer_size, decompressed_buffer_size, compression_mode);
         fclose(input_file);
         fclose(output_file);
         printf("\n\t--->> Compression ");
@@ -156,7 +173,7 @@ int main(int argc, char* argv[])
             return EXIT_FAILURE;
         }
 
-        int result = decompress(input_file, output_file);
+        int result = decompress(input_file, output_file, compressed_buffer_size, decompressed_buffer_size);
         fclose(input_file);
         fclose(output_file);
         printf("\n\t--->> Decompression ");
