@@ -1,3 +1,4 @@
+#include "../include/constants.h"
 #include "../include/bitio.h"
 
 #include <stdio.h>
@@ -26,7 +27,12 @@ BitWriter* init_writer(FILE* file) {
     bit_writer->file = file;
     bit_writer->bit_count = 0;
     bit_writer->total_bits = 0;
-    memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
+    bit_writer->buffer = malloc(OUTPUT_BUFFER_SIZE * sizeof(unsigned char));
+    if (bit_writer->buffer == NULL) {
+        fprintf(stderr, "\n[ERROR]: init_writer() {} -> Unable to allocate memory for bit_writer->buffer!\n");
+        return NULL;
+    }
+    // memset(bit_writer->buffer, 0, OUTPUT_BUFFER_SIZE);
     return bit_writer;
 
 }
@@ -132,11 +138,17 @@ BitReader* init_reader(FILE* file) {
         return NULL;
     }
     bit_reader->file = file;
+    bit_reader->bit_padding = 0;
     bit_reader->bit_pos = 8;
     bit_reader->bits_read = 0;
     bit_reader->buffer_pos = 0;
     bit_reader->buffer_size = 0;
-    memset(bit_reader->buffer, 0, READ_BUFFER_SIZE);
+    bit_reader->buffer = malloc(READ_BUFFER_SIZE * sizeof(unsigned char));
+    if (bit_reader->buffer == NULL) {
+        fprintf(stderr, "\n[ERROR]: init_reader() {} -> Unable to allocate memory for bit_reader->buffer!\n");
+        return NULL;
+    }
+    // memset(bit_reader->buffer, 0, READ_BUFFER_SIZE);
     return bit_reader;
 }
 
