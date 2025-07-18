@@ -39,6 +39,7 @@ int compare_files(const char *file1, const char *file2) {
     if (!f1 || !f2) {
         if (f1) fclose(f1);
         if (f2) fclose(f2);
+        fprintf(stderr, "Failed to open files for comparison: %s, %s\n", file1, file2);
         return -1;
     }
 
@@ -46,6 +47,7 @@ int compare_files(const char *file1, const char *file2) {
     int c1, c2;
     while ((c1 = fgetc(f1)) != EOF && (c2 = fgetc(f2)) != EOF) {
         if (c1 != c2) {
+            printf("\t[DIFF] %X (%ld) != %X (%ld)\n\r", c1, ftell(f1), c2, ftell(f2));
             equal = 0;
             break;
         }

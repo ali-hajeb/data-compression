@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,13 +92,17 @@ int main() {
         // Create paths
         char input_path[MAX_PATH];
         char compressed_path[MAX_PATH];
+        char adv_compressed_path[MAX_PATH];
         char decompressed_path[MAX_PATH];
+        char adv_decompressed_path[MAX_PATH];
         char test_dir[MAX_PATH];
 
         snprintf(input_path, MAX_PATH, "%s/%s", TEST_FILES_DIR, entry->d_name);
         snprintf(test_dir, MAX_PATH, "%s/test_%d", TEST_RESULTS_DIR, test_number);
-        snprintf(compressed_path, MAX_PATH, "%s/%s.huf", test_dir, entry->d_name);
+        snprintf(compressed_path, MAX_PATH, "%s/%s.lz7", test_dir, entry->d_name);
+        snprintf(adv_compressed_path, MAX_PATH, "%s/a_%s.lz7", test_dir, entry->d_name);
         snprintf(decompressed_path, MAX_PATH, "%s/%s", test_dir, entry->d_name);
+        snprintf(adv_decompressed_path, MAX_PATH, "%s/a_%s", test_dir, entry->d_name);
 
         // Create test-specific directory
         if (create_directory(test_dir) != 0) {
@@ -109,8 +114,8 @@ int main() {
 
         // Run compression
         char cmd[MAX_PATH * 2];
-        snprintf(cmd, sizeof(cmd), "./bin/huffman -c %s -o %s", input_path, compressed_path);
-        printf("[TEST %d/3]: Compressing %s\n", test_number, entry->d_name);
+        snprintf(cmd, sizeof(cmd), "./bin/lz7 -c %s -o %s", input_path, compressed_path);
+        printf("[TEST 1/3]: Compressing %s\n", entry->d_name);
         if (run_command(cmd) != 0) {
             fprintf(stderr, "Compression failed for %s\n", entry->d_name);
             closedir(dir);
@@ -118,8 +123,8 @@ int main() {
         }
 
         // Run decompression
-        snprintf(cmd, sizeof(cmd), "./bin/huffman -d %s -o %s", compressed_path, decompressed_path);
-        printf("[TEST %d/3]: Decompressing %s.huf\n", test_number, entry->d_name);
+        snprintf(cmd, sizeof(cmd), "./bin/lz7 -d %s -o %s", compressed_path, decompressed_path);
+        printf("[TEST 2/3]: Decompressing %s.lz7\n", entry->d_name);
         if (run_command(cmd) != 0) {
             fprintf(stderr, "Decompression failed for %s\n", entry->d_name);
             closedir(dir);
@@ -127,7 +132,7 @@ int main() {
         }
 
         // Verify decompressed file matches original
-        printf("[TEST %d/3]: Verifying %s\n", test_number, entry->d_name);
+        printf("[TEST 3/3]: Verifying %s\n", entry->d_name);
         if (compare_files(input_path, decompressed_path)) {
             printf("--- [PASSED] - Decompressed file matches original\n");
         } else {
