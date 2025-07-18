@@ -114,6 +114,18 @@ void print_tree(Node* root, int indent);
 size_t free_heap_nodes(Heap* heap);
 
 /*
+* Function: scale_down
+* --------------------
+*  Returns an scaled down value.
+*
+*  value: The value to be scaled down
+*  scale: The base value
+*
+*  returns: Scaled down value.
+*/
+size_t scale_down(size_t value, size_t scale);
+
+/*
 * Function: write_file_header
 * ---------------------------
 *  Writes header information to the output file
@@ -133,11 +145,12 @@ int write_file_header(FILE* output_file, size_t* frequency_table);
 *
 *  input_file: Pointer to the compressed file
 *  list_size: Pointer to a variable to store frequency table size
-*  bit_count: Pointer to the variable storing total bit count
+*  bit_padding: Pointer to the variable storing remaining bit count
 *
 *  returns: Frequency table
 */
-size_t* read_file_header(FILE* input_file, size_t* list_size, size_t* bit_count);
+size_t* read_file_header(FILE* input_file, size_t* list_size, int* bit_padding);
+// size_t* read_file_header(FILE* input_file, size_t* list_size, size_t* bit_count);
 
 /*
 * Function: generate_huffman_code
@@ -172,9 +185,11 @@ int encode(FILE* input_file, BitWriter* bit_writer, Code* code_table);
 *  output_file: Pointer to the output file.
 *  bit_reader: Pointer to a BitReader object.
 *  root: Pointer to the root node of the huffman tree.
-*  total_bits: Number of encoded bits.
+*  bit_padding: Number of encoded bits in the last byte of the file
 *
 *  returns: If failed (0), on success (1)
 */
-int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bits);
+int decode(FILE *output_file, BitReader *bit_reader, Node* root, int bit_padding);
+
+// int decode(FILE *output_file, BitReader *bit_reader, Node* root, size_t total_bits);
 #endif
