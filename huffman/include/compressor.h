@@ -9,14 +9,15 @@
 * Function: fill_minheap
 * ----------------------
 * Creates a new node for every non-zero value in frequency table
-* and inserts it to the min-heap
+* and inserts it to the min-heap.
 *
-* frequency_table: Pointer to the frequency table
-* priority_queue: Pointer to the min-heap object
+* frequency_table: Pointer to the frequency table.
+* priority_queue: Pointer to the min-heap object.
+* max_count: If > 0, scales down the frequency
 *
 * returns: Count of inserted nodes.
 */
-ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue);
+ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue, size_t max_count);
 
 /*
 * Function: compress

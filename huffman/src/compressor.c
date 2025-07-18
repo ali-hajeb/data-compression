@@ -17,10 +17,11 @@
 *
 * frequency_table: Pointer to the frequency table.
 * priority_queue: Pointer to the min-heap object.
+* max_count: If > 0, scales down the frequency
 *
 * returns: Count of inserted nodes.
 */
-ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue) {
+ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue, size_t max_count) {
     if (frequency_table == NULL || priority_queue == NULL) {
         err("fill_minheap", "Frequency table and/or priority queue is NULL!");
         return -1;
@@ -35,7 +36,10 @@ ssize_t fill_minheap(size_t* frequency_table, Heap* priority_queue) {
                 return priority_queue->size;
             }
             node->symbol = (unsigned char) i;
-            node->frequency = frequency_table[i];
+            node->frequency = scale_down(frequency_table[i], max_count);
+            if (node->frequency == 0) {
+                node->frequency++;
+            }
             node->l_node = node->r_node = NULL;
 
             // Insert the new node to heap node list
@@ -65,7 +69,7 @@ int compress(FILE* input_file, FILE* output_file) {
         return 0;
     }
     // Initialize resource management system
-    Resources resource = resources_init(3);
+    Resources resource = resources_init(4);
     // Generate frequency table
     size_t* frequency_table = count_run(input_file);
     if (frequency_table == NULL || resources_add(&resource, frequency_table) == 0) {
@@ -83,7 +87,7 @@ int compress(FILE* input_file, FILE* output_file) {
         return 0;
     }
 
-    size_t heap_size = fill_minheap(frequency_table, priority_queue);
+    size_t heap_size = fill_minheap(frequency_table, priority_queue, max_count);
     if (heap_size < heap_capacity) {
         free_heap_nodes(priority_queue);
         free_heap(priority_queue);
@@ -112,7 +116,8 @@ int compress(FILE* input_file, FILE* output_file) {
     generate_huffman_code(code_table, 0, 0, root);
 
     BitWriter* bit_writer = init_writer(output_file);
-    if (bit_writer == NULL || resources_add(&resource, bit_writer) == 0) {
+    if (bit_writer == NULL || resources_add(&resource, bit_writer->buffer) == 0 
+        || resources_add(&resource, bit_writer) == 0) {
         free_tree(root);
         free_heap(priority_queue);
         resources_cleanup(&resource);
@@ -138,8 +143,10 @@ int compress(FILE* input_file, FILE* output_file) {
     }
 
     // Write the total bits
-    size_t total_bits = bit_writer->total_bits;
-    size_t res = fwrite(&total_bits, sizeof(size_t), 1, output_file);
+    // size_t total_bits = bit_writer->total_bits;
+    // size_t res = fwrite(&total_bits, sizeof(size_t), 1, output_file);
+    size_t remaining_bits = bit_writer->total_bits % 8;
+    size_t res = fwrite(&remaining_bits, sizeof(unsigned char), 1, output_file);
 
     free_tree(root);
     free_heap(priority_queue);
@@ -159,20 +166,22 @@ int compress(FILE* input_file, FILE* output_file) {
 */
 int decompress(FILE* input_file, FILE* output_file) {
     // Initialize resource management system
-    Resources resource = resources_init(2);
+    Resources resource = resources_init(3);
     if (resource.pointers == NULL) {
         return 0;
     }
 
     BitReader* bit_reader = init_reader(input_file);
-    if (bit_reader == NULL || resources_add(&resource, bit_reader) == 0) {
+    if (bit_reader == NULL || resources_add(&resource, bit_reader->buffer) == 0
+        || resources_add(&resource, bit_reader) == 0) {
         resources_cleanup(&resource);
         return 0;
     }
 
-    size_t total_bits = 0;
+    // size_t total_bits = 0;
+    int bit_padding = 0;
     size_t list_size = 0;
-    size_t* frequency_table = read_file_header(input_file, &list_size, &total_bits);
+    size_t* frequency_table = read_file_header(input_file, &list_size, &bit_padding);
     if (frequency_table == NULL || resources_add(&resource, frequency_table) == 0) {
         resources_cleanup(&resource);
         return 0;
@@ -184,7 +193,7 @@ int decompress(FILE* input_file, FILE* output_file) {
         return 0;
     }
 
-    size_t heap_size = fill_minheap(frequency_table, priority_queue);
+    size_t heap_size = fill_minheap(frequency_table, priority_queue, 0);
     if (heap_size < list_size) {
         free_heap_nodes(priority_queue);
         free_heap(priority_queue);
@@ -200,7 +209,7 @@ int decompress(FILE* input_file, FILE* output_file) {
         return 0;
     }
 
-    int result = decode(output_file, bit_reader, root, total_bits);
+    int result = decode(output_file, bit_reader, root, bit_padding);
 
     free_tree(root);
     free_heap(priority_queue);
@@ -209,10 +218,10 @@ int decompress(FILE* input_file, FILE* output_file) {
 }
 
 void print_heap(Heap* heap, const char* title) {
-    Node* nodes = (Node*) heap->nodes;
+    Node** nodes = (Node**) heap->nodes;
     printf("\n===========| %s |===========\n", title);
     for (size_t i = 0; i < heap->size; i++) {
-        printf("[%02X]: %c (%zu)\n", nodes[i].symbol, nodes[i].symbol, nodes[i].frequency);
+        printf("[%02X]: %c (%zu)\n", nodes[i]->symbol, nodes[i]->symbol, nodes[i]->frequency);
     }
     printf("============================\n");
 }
