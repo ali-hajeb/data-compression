@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
                 }
                 compress_mode = 1;
                 decompress_mode = 0;
-                input_file_path = malloc(strlen(optarg));
+                input_file_path = malloc(strlen(optarg) + 1);
                 if (input_file_path == NULL) {
                     err("main", "Unable to allocate memory for input file name!\n");
                     return EXIT_FAILURE;
@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
                 }
                 decompress_mode = 1;
                 compress_mode = 0;
-                input_file_path = malloc(strlen(optarg));
+                input_file_path = malloc(strlen(optarg) + 1);
                 if (input_file_path == NULL) {
                     err("main", "Unable to allocate memory for input file name!\n");
                     return EXIT_FAILURE;
