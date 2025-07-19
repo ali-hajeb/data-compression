@@ -3,6 +3,6 @@ Data compression algorithms are techniques that reduce the size of data while pr
 In this repository, I try to implement some of the common algorithms using c language.
 
 ## Algorithms
-- [Run-Length Encoding (RLE)](rle/README.md)
-- [The Lempel-Ziv Algorithm (LZ77)](lz77/README.md)
-- [Huffman Coding](huffman/README.md)
+- [Run-Length Encoding (RLE)](https://github.com/ali-hajeb/rle-c)
+- [The Lempel-Ziv Algorithm (LZ77)](https://github.com/ali-hajeb/lz77-c)
+- [Huffman Coding](https://github.com/ali-hajeb/huffman-c)
